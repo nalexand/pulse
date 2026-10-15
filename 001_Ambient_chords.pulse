@@ -1,0 +1,1865 @@
+{
+  "schema": 7,
+  "recording": {
+    "countInBars": 0,
+    "preRollBars": 1,
+    "punch": false,
+    "punchStart": 0.0,
+    "punchEnd": 8.0
+  },
+  "application": "Pulse Studio",
+  "title": "Untitled - Ambient chords",
+  "markers": [],
+  "loopSection": "",
+  "bpm": 72.0,
+  "swing": 0.0,
+  "master": 0.800000011920929,
+  "delayFeedback": 0.300000011920929,
+  "songMode": true,
+  "loop": true,
+  "metronome": false,
+  "activePattern": 0,
+  "notes": "",
+  "tracks": [
+    {
+      "name": "Kick",
+      "instrument": 0,
+      "volume": 1.164760589599609,
+      "pan": 0.0,
+      "cutoff": 16000.0,
+      "drive": 0.0,
+      "send": 0.0,
+      "attack": 0.004999999888241,
+      "release": 0.180000007152557,
+      "mute": false,
+      "solo": false,
+      "samplePath": "",
+      "sampleStart": 0.0,
+      "sampleEnd": 0.0,
+      "sampleLoop": false,
+      "isBus": false,
+      "mixer": {
+        "output": -1,
+        "sidechain": -1,
+        "eq": false,
+        "compressor": false,
+        "reverb": true,
+        "low": 1.466669082641602,
+        "mid": 0.0,
+        "high": 0.0,
+        "threshold": 0.0,
+        "ratio": 4.0,
+        "attack": 0.100000001490116,
+        "release": 5.0,
+        "makeup": 0.373337745666504,
+        "mix": 0.091481372714043,
+        "room": 0.542222201824188,
+        "damping": 1.0
+      }
+    },
+    {
+      "name": "Snare",
+      "instrument": 1,
+      "volume": 0.647777616977692,
+      "pan": -0.028148174285889,
+      "cutoff": 16000.0,
+      "drive": 0.0,
+      "send": 0.0,
+      "attack": 0.004999999888241,
+      "release": 0.180000007152557,
+      "mute": false,
+      "solo": false,
+      "samplePath": "",
+      "sampleStart": 0.0,
+      "sampleEnd": 0.0,
+      "sampleLoop": false,
+      "isBus": false,
+      "mixer": {
+        "output": -1,
+        "sidechain": -1,
+        "eq": false,
+        "compressor": false,
+        "reverb": true,
+        "low": 0.0,
+        "mid": 0.0,
+        "high": 0.0,
+        "threshold": -18.0,
+        "ratio": 4.0,
+        "attack": 10.0,
+        "release": 120.0,
+        "makeup": 0.0,
+        "mix": 0.191111117601395,
+        "room": 0.897777676582336,
+        "damping": 1.0
+      }
+    },
+    {
+      "name": "Closed hat",
+      "instrument": 2,
+      "volume": 0.468557834625244,
+      "pan": 0.280740737915039,
+      "cutoff": 16000.0,
+      "drive": 0.0,
+      "send": 0.0,
+      "attack": 0.004999999888241,
+      "release": 0.180000007152557,
+      "mute": false,
+      "solo": false,
+      "samplePath": "",
+      "sampleStart": 0.0,
+      "sampleEnd": 0.0,
+      "sampleLoop": false,
+      "isBus": false,
+      "mixer": {
+        "output": -1,
+        "sidechain": -1,
+        "eq": false,
+        "compressor": false,
+        "reverb": true,
+        "low": 0.0,
+        "mid": 0.0,
+        "high": 0.0,
+        "threshold": -18.0,
+        "ratio": 4.0,
+        "attack": 10.0,
+        "release": 120.0,
+        "makeup": 0.0,
+        "mix": 0.176666676998138,
+        "room": 0.728148221969604,
+        "damping": 1.0
+      }
+    },
+    {
+      "name": "Clap",
+      "instrument": 4,
+      "volume": 0.595140516757965,
+      "pan": -0.168888807296753,
+      "cutoff": 16000.0,
+      "drive": 0.0,
+      "send": 0.0,
+      "attack": 0.004999999888241,
+      "release": 0.180000007152557,
+      "mute": false,
+      "solo": false,
+      "samplePath": "",
+      "sampleStart": 0.0,
+      "sampleEnd": 0.0,
+      "sampleLoop": false,
+      "isBus": false,
+      "mixer": {
+        "output": -1,
+        "sidechain": -1,
+        "eq": false,
+        "compressor": false,
+        "reverb": false,
+        "low": 0.0,
+        "mid": 0.0,
+        "high": 0.0,
+        "threshold": -18.0,
+        "ratio": 4.0,
+        "attack": 10.0,
+        "release": 120.0,
+        "makeup": 0.0,
+        "mix": 0.150000005960464,
+        "room": 0.5,
+        "damping": 0.5
+      }
+    },
+    {
+      "name": "Open hat",
+      "instrument": 4,
+      "volume": 0.633115231990814,
+      "pan": -0.200000002980232,
+      "cutoff": 16000.0,
+      "drive": 0.0,
+      "send": 0.0,
+      "attack": 0.004999999888241,
+      "release": 0.180000007152557,
+      "mute": false,
+      "solo": false,
+      "samplePath": "",
+      "sampleStart": 0.0,
+      "sampleEnd": 0.0,
+      "sampleLoop": false,
+      "isBus": false,
+      "mixer": {
+        "output": -1,
+        "sidechain": -1,
+        "eq": false,
+        "compressor": false,
+        "reverb": false,
+        "low": 0.0,
+        "mid": 0.0,
+        "high": 0.0,
+        "threshold": -18.0,
+        "ratio": 4.0,
+        "attack": 10.0,
+        "release": 120.0,
+        "makeup": 0.0,
+        "mix": 0.150000005960464,
+        "room": 0.5,
+        "damping": 0.5
+      }
+    },
+    {
+      "name": "Bass",
+      "instrument": 5,
+      "volume": 0.467601895332336,
+      "pan": 0.0,
+      "cutoff": 1400.0,
+      "drive": 0.0,
+      "send": 0.0,
+      "attack": 0.004999999888241,
+      "release": 0.180000007152557,
+      "mute": false,
+      "solo": false,
+      "samplePath": "",
+      "sampleStart": 0.0,
+      "sampleEnd": 0.0,
+      "sampleLoop": false,
+      "isBus": false,
+      "mixer": {
+        "output": -1,
+        "sidechain": -1,
+        "eq": true,
+        "compressor": true,
+        "reverb": false,
+        "low": 18.0,
+        "mid": -13.306668281555176,
+        "high": -18.0,
+        "threshold": -6.75555419921875,
+        "ratio": 1.0,
+        "attack": 31.032014846801758,
+        "release": 104.500106811523438,
+        "makeup": 7.893329620361328,
+        "mix": 0.0,
+        "room": 0.864444375038147,
+        "damping": 1.0
+      }
+    },
+    {
+      "name": "Chords",
+      "instrument": 6,
+      "volume": 0.657777786254883,
+      "pan": -0.011851847171783,
+      "cutoff": 16000.0,
+      "drive": 0.0,
+      "send": 0.349999994039536,
+      "attack": 0.400000005960464,
+      "release": 1.700000047683716,
+      "mute": false,
+      "solo": false,
+      "samplePath": "",
+      "sampleStart": 0.0,
+      "sampleEnd": 0.0,
+      "sampleLoop": false,
+      "isBus": false,
+      "mixer": {
+        "output": -1,
+        "sidechain": -1,
+        "eq": true,
+        "compressor": false,
+        "reverb": true,
+        "low": -1.600000381469727,
+        "mid": -9.44000244140625,
+        "high": -12.720001220703125,
+        "threshold": -26.711109161376953,
+        "ratio": 4.0,
+        "attack": 38.711986541748047,
+        "release": 120.0,
+        "makeup": 10.160001754760742,
+        "mix": 0.066666662693024,
+        "room": 0.0,
+        "damping": 0.0
+      }
+    },
+    {
+      "name": "Lead",
+      "instrument": 7,
+      "volume": 1.190076589584351,
+      "pan": 0.0,
+      "cutoff": 16000.0,
+      "drive": 0.0,
+      "send": 0.180000007152557,
+      "attack": 0.004999999888241,
+      "release": 0.180000007152557,
+      "mute": false,
+      "solo": false,
+      "samplePath": "",
+      "sampleStart": 0.0,
+      "sampleEnd": 0.0,
+      "sampleLoop": false,
+      "isBus": false,
+      "mixer": {
+        "output": -1,
+        "sidechain": -1,
+        "eq": false,
+        "compressor": true,
+        "reverb": true,
+        "low": 0.0,
+        "mid": 0.0,
+        "high": 0.0,
+        "threshold": -18.0,
+        "ratio": 4.0,
+        "attack": 10.0,
+        "release": 120.0,
+        "makeup": 10.453329086303711,
+        "mix": 0.561851859092712,
+        "room": 0.872592628002167,
+        "damping": 1.0
+      }
+    },
+    {
+      "name": "Sampler",
+      "instrument": 7,
+      "volume": 1.5,
+      "pan": 0.0,
+      "cutoff": 16000.0,
+      "drive": 0.0,
+      "send": 0.0,
+      "attack": 0.004999999888241,
+      "release": 0.180000007152557,
+      "mute": false,
+      "solo": false,
+      "samplePath": "",
+      "sampleStart": 0.0,
+      "sampleEnd": 0.0,
+      "sampleLoop": false,
+      "isBus": false,
+      "mixer": {
+        "output": -1,
+        "sidechain": -1,
+        "eq": true,
+        "compressor": true,
+        "reverb": true,
+        "low": 14.133335113525391,
+        "mid": -11.680001258850098,
+        "high": -11.75999927520752,
+        "threshold": -13.422222137451172,
+        "ratio": 8.869632720947266,
+        "attack": 0.100000001490116,
+        "release": 553.37774658203125,
+        "makeup": 5.493335723876953,
+        "mix": 0.704814910888672,
+        "room": 1.0,
+        "damping": 1.0
+      }
+    },
+    {
+      "name": "Sampler",
+      "instrument": 7,
+      "volume": 0.600000023841858,
+      "pan": 0.0,
+      "cutoff": 16000.0,
+      "drive": 0.0,
+      "send": 0.0,
+      "attack": 0.004999999888241,
+      "release": 0.180000007152557,
+      "mute": false,
+      "solo": false,
+      "samplePath": "",
+      "sampleStart": 0.0,
+      "sampleEnd": 0.0,
+      "sampleLoop": false,
+      "isBus": false,
+      "mixer": {
+        "output": -1,
+        "sidechain": -1,
+        "eq": false,
+        "compressor": true,
+        "reverb": true,
+        "low": 0.0,
+        "mid": 0.0,
+        "high": 0.0,
+        "threshold": -23.288883209228516,
+        "ratio": 16.793333053588867,
+        "attack": 72.60400390625,
+        "release": 86.833473205566406,
+        "makeup": 10.773332595825195,
+        "mix": 0.65111118555069,
+        "room": 0.938518583774567,
+        "damping": 0.584444224834442
+      }
+    }
+  ],
+  "patterns": [
+    {
+      "name": "Quiet chords",
+      "length": 8.0,
+      "lanes": [
+        [
+          {
+            "beat": 0.0,
+            "length": 0.25,
+            "pitch": 36,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 2.0,
+            "length": 0.25,
+            "pitch": 36,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 4.0,
+            "length": 0.25,
+            "pitch": 36,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 6.0,
+            "length": 0.25,
+            "pitch": 36,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          }
+        ],
+        [
+          {
+            "beat": 1.0,
+            "length": 0.25,
+            "pitch": 38,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 3.0,
+            "length": 0.25,
+            "pitch": 38,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 5.0,
+            "length": 0.25,
+            "pitch": 38,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 1.5,
+            "length": 0.25,
+            "pitch": 38,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 3.5,
+            "length": 0.25,
+            "pitch": 38,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 5.5,
+            "length": 0.25,
+            "pitch": 38,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 7.0,
+            "length": 0.25,
+            "pitch": 38,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 7.360505670309067,
+            "length": 0.25,
+            "pitch": 38,
+            "velocity": 1.0,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 7.505563221871853,
+            "length": 0.25,
+            "pitch": 38,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          }
+        ],
+        [
+          {
+            "beat": 1.0,
+            "length": 0.25,
+            "pitch": 42,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 1.75,
+            "length": 0.25,
+            "pitch": 42,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 2.0,
+            "length": 0.25,
+            "pitch": 42,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 5.0,
+            "length": 0.25,
+            "pitch": 42,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 5.75,
+            "length": 0.25,
+            "pitch": 42,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 6.0,
+            "length": 0.25,
+            "pitch": 42,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          }
+        ],
+        [
+          {
+            "beat": 0.5,
+            "length": 0.25,
+            "pitch": 42,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 1.5,
+            "length": 0.25,
+            "pitch": 42,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 3.5,
+            "length": 0.25,
+            "pitch": 42,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 4.5,
+            "length": 0.25,
+            "pitch": 42,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 5.25,
+            "length": 0.25,
+            "pitch": 42,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 6.75,
+            "length": 0.25,
+            "pitch": 42,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          }
+        ],
+        [],
+        [
+          {
+            "beat": 0.0,
+            "length": 1.7,
+            "pitch": 33,
+            "velocity": 0.5,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 2.0,
+            "length": 1.7,
+            "pitch": 29,
+            "velocity": 0.5,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 6.0,
+            "length": 1.7,
+            "pitch": 31,
+            "velocity": 0.5,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 4.0,
+            "length": 2.0,
+            "pitch": 36,
+            "velocity": 0.498855590820312,
+            "probability": 1.0,
+            "ratchets": 1
+          }
+        ],
+        [
+          {
+            "beat": 2.0,
+            "length": 2.0,
+            "pitch": 60,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 0.0,
+            "length": 2.0,
+            "pitch": 64,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 2.0,
+            "length": 2.0,
+            "pitch": 57,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 2.0,
+            "length": 2.0,
+            "pitch": 53,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 0.0,
+            "length": 2.0,
+            "pitch": 60,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 0.0,
+            "length": 2.0,
+            "pitch": 57,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 4.0,
+            "length": 2.0,
+            "pitch": 67,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 6.0,
+            "length": 2.0,
+            "pitch": 62,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 4.0,
+            "length": 2.0,
+            "pitch": 64,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 4.0,
+            "length": 2.0,
+            "pitch": 60,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 6.0,
+            "length": 2.0,
+            "pitch": 59,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 6.0,
+            "length": 2.0,
+            "pitch": 55,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          }
+        ],
+        [
+          {
+            "beat": 1.5,
+            "length": 0.3,
+            "pitch": 69,
+            "velocity": 0.449999988079071,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 3.5,
+            "length": 0.3,
+            "pitch": 65,
+            "velocity": 0.449999988079071,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 5.5,
+            "length": 0.3,
+            "pitch": 72,
+            "velocity": 0.449999988079071,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 7.5,
+            "length": 0.3,
+            "pitch": 67,
+            "velocity": 0.449999988079071,
+            "probability": 1.0,
+            "ratchets": 1
+          }
+        ],
+        [
+          {
+            "beat": 1.0,
+            "length": 0.5,
+            "pitch": 81,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 0.5,
+            "length": 0.5,
+            "pitch": 76,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 0.0,
+            "length": 0.5,
+            "pitch": 77,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 2.0,
+            "length": 0.5,
+            "pitch": 79,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 3.0,
+            "length": 0.5,
+            "pitch": 77,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 3.5,
+            "length": 0.5,
+            "pitch": 79,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 4.0,
+            "length": 2.0,
+            "pitch": 76,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 6.0,
+            "length": 2.0,
+            "pitch": 74,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          }
+        ],
+        [
+          {
+            "beat": 0.0,
+            "length": 0.35,
+            "pitch": 69,
+            "velocity": 0.653650224208832,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 0.5,
+            "length": 0.35,
+            "pitch": 71,
+            "velocity": 0.790730357170105,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 1.0,
+            "length": 0.35,
+            "pitch": 72,
+            "velocity": 0.636523067951202,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 1.5,
+            "length": 0.35,
+            "pitch": 77,
+            "velocity": 0.756037831306458,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 2.0,
+            "length": 0.35,
+            "pitch": 69,
+            "velocity": 0.790437519550323,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 2.5,
+            "length": 0.35,
+            "pitch": 71,
+            "velocity": 0.749381422996521,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 3.0,
+            "length": 0.35,
+            "pitch": 72,
+            "velocity": 0.836867928504944,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 3.5,
+            "length": 0.35,
+            "pitch": 69,
+            "velocity": 0.721237301826477,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 4.0,
+            "length": 0.35,
+            "pitch": 69,
+            "velocity": 0.805144548416138,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 4.5,
+            "length": 0.35,
+            "pitch": 71,
+            "velocity": 0.79699432849884,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 5.0,
+            "length": 0.35,
+            "pitch": 72,
+            "velocity": 0.757495045661926,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 5.5,
+            "length": 0.35,
+            "pitch": 76,
+            "velocity": 0.656407535076141,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 6.0,
+            "length": 0.35,
+            "pitch": 74,
+            "velocity": 0.656438708305359,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 6.5,
+            "length": 0.35,
+            "pitch": 71,
+            "velocity": 0.713290452957153,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 7.0,
+            "length": 0.35,
+            "pitch": 79,
+            "velocity": 0.736900150775909,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 7.5,
+            "length": 0.35,
+            "pitch": 77,
+            "velocity": 0.677162826061249,
+            "probability": 1.0,
+            "ratchets": 1
+          }
+        ]
+      ]
+    },
+    {
+      "name": "Pattern 2",
+      "length": 8.0,
+      "lanes": [
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [
+          {
+            "beat": 1.5,
+            "length": 0.5,
+            "pitch": 69,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 3.5,
+            "length": 0.5,
+            "pitch": 65,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 5.5,
+            "length": 0.5,
+            "pitch": 71,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 7.0,
+            "length": 0.5,
+            "pitch": 69,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          },
+          {
+            "beat": 7.5,
+            "length": 0.5,
+            "pitch": 72,
+            "velocity": 0.800000011920929,
+            "probability": 1.0,
+            "ratchets": 1
+          }
+        ],
+        [],
+        []
+      ]
+    }
+  ],
+  "clips": [
+    {
+      "track": 0,
+      "pattern": 0,
+      "beat": 8.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 0,
+      "pattern": 0,
+      "beat": 16.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 0,
+      "pattern": 0,
+      "beat": 24.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 0,
+      "pattern": 0,
+      "beat": 32.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 1,
+      "pattern": 0,
+      "beat": 8.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 1,
+      "pattern": 0,
+      "beat": 16.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 1,
+      "pattern": 0,
+      "beat": 24.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 1,
+      "pattern": 0,
+      "beat": 32.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 2,
+      "pattern": 0,
+      "beat": 8.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 2,
+      "pattern": 0,
+      "beat": 16.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 2,
+      "pattern": 0,
+      "beat": 24.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 2,
+      "pattern": 0,
+      "beat": 32.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 3,
+      "pattern": 0,
+      "beat": 16.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 3,
+      "pattern": 0,
+      "beat": 24.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 3,
+      "pattern": 0,
+      "beat": 32.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 4,
+      "pattern": 0,
+      "beat": 16.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 4,
+      "pattern": 0,
+      "beat": 24.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 4,
+      "pattern": 0,
+      "beat": 32.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 9,
+      "pattern": 0,
+      "beat": 0.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 9,
+      "pattern": 0,
+      "beat": 8.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 9,
+      "pattern": 0,
+      "beat": 16.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 9,
+      "pattern": 0,
+      "beat": 24.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 9,
+      "pattern": 0,
+      "beat": 32.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 8,
+      "pattern": 0,
+      "beat": 16.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 8,
+      "pattern": 0,
+      "beat": 24.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 8,
+      "pattern": 0,
+      "beat": 32.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 7,
+      "pattern": 0,
+      "beat": 24.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 6,
+      "pattern": 0,
+      "beat": 16.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 6,
+      "pattern": 0,
+      "beat": 24.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 6,
+      "pattern": 0,
+      "beat": 32.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 5,
+      "pattern": 0,
+      "beat": 16.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 5,
+      "pattern": 0,
+      "beat": 24.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 5,
+      "pattern": 0,
+      "beat": 32.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 6,
+      "pattern": 0,
+      "beat": 16.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": 1,
+      "automationTrack": 6,
+      "points": [
+        {
+          "beat": 0.0,
+          "value": 0.755817770957947,
+          "hold": false
+        },
+        {
+          "beat": 2.0,
+          "value": 0.239071354269981,
+          "hold": false
+        },
+        {
+          "beat": 4.0,
+          "value": 0.762197375297546,
+          "hold": false
+        },
+        {
+          "beat": 6.0,
+          "value": 0.235881611704826,
+          "hold": false
+        },
+        {
+          "beat": 8.0,
+          "value": 0.743058621883392,
+          "hold": false
+        }
+      ]
+    },
+    {
+      "track": 6,
+      "pattern": 0,
+      "beat": 24.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": 1,
+      "automationTrack": 6,
+      "points": [
+        {
+          "beat": 0.0,
+          "value": 0.759007632732391,
+          "hold": false
+        },
+        {
+          "beat": 2.0,
+          "value": 0.229501977562904,
+          "hold": false
+        },
+        {
+          "beat": 4.0,
+          "value": 0.762197375297546,
+          "hold": false
+        },
+        {
+          "beat": 6.0,
+          "value": 0.235881611704826,
+          "hold": false
+        },
+        {
+          "beat": 8.0,
+          "value": 0.746248364448547,
+          "hold": false
+        }
+      ]
+    },
+    {
+      "track": 6,
+      "pattern": 0,
+      "beat": 32.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": 1,
+      "automationTrack": 6,
+      "points": [
+        {
+          "beat": 0.0,
+          "value": 0.749438285827637,
+          "hold": false
+        },
+        {
+          "beat": 2.0,
+          "value": 0.23269185423851,
+          "hold": false
+        },
+        {
+          "beat": 4.0,
+          "value": 0.762197375297546,
+          "hold": false
+        },
+        {
+          "beat": 6.0,
+          "value": 0.229501977562904,
+          "hold": false
+        },
+        {
+          "beat": 8.0,
+          "value": 0.746248364448547,
+          "hold": false
+        }
+      ]
+    },
+    {
+      "track": 0,
+      "pattern": 0,
+      "beat": 0.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 1,
+      "pattern": 0,
+      "beat": 0.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 3,
+      "pattern": 0,
+      "beat": 8.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 0,
+      "pattern": 0,
+      "beat": 0.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": 0,
+      "automationTrack": 0,
+      "points": [
+        {
+          "beat": 0.0,
+          "value": 0.0,
+          "hold": false
+        },
+        {
+          "beat": 8.0,
+          "value": 0.503824174404144,
+          "hold": false
+        }
+      ]
+    },
+    {
+      "track": 0,
+      "pattern": 0,
+      "beat": 8.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": 0,
+      "automationTrack": 0,
+      "points": [
+        {
+          "beat": 0.0,
+          "value": 0.500634431838989,
+          "hold": false
+        },
+        {
+          "beat": 8.0,
+          "value": 0.776507079601288,
+          "hold": false
+        }
+      ]
+    },
+    {
+      "track": 5,
+      "pattern": 0,
+      "beat": 8.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 7,
+      "pattern": 0,
+      "beat": 8.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 7,
+      "pattern": 1,
+      "beat": 16.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 7,
+      "pattern": 1,
+      "beat": 32.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 0,
+      "pattern": 0,
+      "beat": 40.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 1,
+      "pattern": 0,
+      "beat": 40.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 2,
+      "pattern": 0,
+      "beat": 40.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 3,
+      "pattern": 0,
+      "beat": 40.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 4,
+      "pattern": 0,
+      "beat": 40.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 5,
+      "pattern": 0,
+      "beat": 40.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 7,
+      "pattern": 0,
+      "beat": 40.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    },
+    {
+      "track": 8,
+      "pattern": 0,
+      "beat": 40.0,
+      "length": 8.0,
+      "audioPath": "",
+      "sourceOffset": 0.0,
+      "gain": 1.0,
+      "fadeIn": 0.0,
+      "fadeOut": 0.0,
+      "automationTarget": -1,
+      "automationTrack": -1,
+      "points": []
+    }
+  ]
+}
