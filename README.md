@@ -111,7 +111,7 @@ other items are explicitly **Skipped** or **Planned**.
   controllers or hardware MIDI.
 - Export is WAV/FLAC only, at most one hour including tail; no metadata,
   loudness normalization or true-peak limiting.
-- **Native `.flp` and zipped FL Studio projects cannot be opened yet.** Use
+- Use
   Pulse projects, MIDI interchange and audio imports.
 - No installer, no macOS/Linux build, no themes, no shortcut remapping, no
   screen-reader-complete custom controls.
