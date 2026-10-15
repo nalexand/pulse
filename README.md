@@ -1,4 +1,7 @@
-# Pulse Studio
+# Pulse Studio DAW
+
+<img width="2260" height="1078" alt="image" src="https://github.com/nalexand/pulse/blob/main/pulse_studio.jpg" />
+
 
 A native, fully offline Windows music workstation with a familiar FL Studio–style
 multiwindow interface. Original code, original synthesized sounds, built on
