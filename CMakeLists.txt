@@ -1,0 +1,28 @@
+cmake_minimum_required(VERSION 3.22)
+cmake_policy(SET CMP0091 NEW)
+# Static MSVC runtime makes the Windows executable portable (no VC runtime DLLs).
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+project(PulseStudio VERSION 0.37.0 LANGUAGES C CXX)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+add_subdirectory(vendor/JUCE EXCLUDE_FROM_ALL)
+
+juce_add_gui_app(PulseStudio PRODUCT_NAME "Pulse Studio" COMPANY_NAME "Pulse Studio" BUNDLE_ID "local.pulse.studio" VERSION 0.37.0)
+target_sources(PulseStudio PRIVATE src/Main.cpp src/Studio.cpp src/StudioUI.cpp src/Workspace.cpp src/WorkspaceLayouts.cpp src/ControlEdits.cpp src/ControlMailbox.cpp src/TypingPerformance.cpp src/WorkspacePresetUI.cpp src/ControlUI.cpp src/ControlVerification.cpp src/TypingUI.cpp src/TypingVerification.cpp src/WorkspaceVerification.cpp src/Editor.cpp src/UIVerification.cpp src/Project.cpp src/ArrangementTools.cpp src/Engine.cpp src/Metronome.cpp src/Analyzer.cpp src/Stereo.cpp src/Wavetable.cpp src/MixerDSP.cpp src/Chorus.cpp src/Modulation.cpp src/EffectPresets.cpp src/Recorder.cpp src/AudioEditing.cpp src/Automation.cpp src/MixerUI.cpp src/Transport.cpp src/SampleEditor.cpp src/ProjectAssets.cpp src/AssetManager.cpp src/Templates.cpp src/TemplateUI.cpp src/RecordingUI.cpp src/Render.cpp src/ExportUI.cpp src/MarkersUI.cpp src/SectionClipsUI.cpp src/SectionClipVerification.cpp src/NoteTools.cpp src/NoteToolsUI.cpp src/CommandPalette.cpp src/CommandUI.cpp src/Rhythm.cpp src/RhythmUI.cpp src/Arpeggiator.cpp src/ArpeggiatorUI.cpp src/NotePresets.cpp src/NotePresetUI.cpp src/NotePresetVerification.cpp src/PatternTools.cpp src/PatternToolsUI.cpp src/PatternSelectionUI.cpp src/PatternSelectionVerification.cpp src/PatternToolsVerification.cpp src/PatternBankVerification.cpp src/SequenceVerification.cpp src/AppearanceUI.cpp src/AppearanceVerification.cpp src/WaveEditing.cpp src/WaveResamplingUI.cpp src/WaveResamplingVerification.cpp src/WaveEditingVerification.cpp src/WaveTools.cpp src/TransientUI.cpp src/Synth.cpp src/SynthPresets.cpp src/SynthUI.cpp src/SynthVerification.cpp src/SoundLibrary.cpp src/SoundLibraryUI.cpp src/SoundLibraryVerification.cpp src/ChorusUI.cpp src/ChorusVerification.cpp src/ModulationUI.cpp src/ModulationVerification.cpp src/EffectChainUI.cpp src/EffectChainVerification.cpp src/AnalyzerUI.cpp src/AnalyzerVerification.cpp src/StereoUI.cpp src/StereoVerification.cpp src/WavetableVerification.cpp)
+set_target_properties(PulseStudio PROPERTIES OUTPUT_NAME "Pulse Studio 0.37.0")
+target_include_directories(PulseStudio PRIVATE src)
+target_compile_definitions(PulseStudio PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_REPORT_APP_USAGE=0 JUCE_ASIO=0)
+target_link_libraries(PulseStudio PRIVATE juce::juce_audio_utils juce::juce_dsp juce::juce_cryptography juce::juce_recommended_config_flags)
+
+juce_add_console_app(PulseTests PRODUCT_NAME "Pulse Tests")
+target_sources(PulseTests PRIVATE tests/Tests.cpp src/Project.cpp src/ArrangementTools.cpp src/Engine.cpp src/Metronome.cpp src/Analyzer.cpp src/Stereo.cpp src/Wavetable.cpp src/MixerDSP.cpp src/Chorus.cpp src/Modulation.cpp src/EffectPresets.cpp src/Recorder.cpp src/ProjectAssets.cpp src/Templates.cpp src/Render.cpp src/NoteTools.cpp src/Rhythm.cpp src/Arpeggiator.cpp src/NotePresets.cpp src/PatternTools.cpp src/WaveTools.cpp src/Synth.cpp src/SynthPresets.cpp src/SoundLibrary.cpp src/WorkspaceLayouts.cpp src/ControlEdits.cpp src/ControlMailbox.cpp src/TypingPerformance.cpp)
+target_include_directories(PulseTests PRIVATE src)
+target_compile_definitions(PulseTests PRIVATE JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_ASIO=0)
+target_link_libraries(PulseTests PRIVATE juce::juce_audio_formats juce::juce_dsp juce::juce_cryptography juce::juce_recommended_config_flags)
+enable_testing()
+add_test(NAME pulse_engine_and_persistence COMMAND PulseTests ${CMAKE_CURRENT_SOURCE_DIR}/test-output)
+if(MSVC)
+    target_compile_options(PulseStudio PRIVATE /utf-8)
+    target_compile_options(PulseTests PRIVATE /utf-8)
+endif()
+

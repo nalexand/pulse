@@ -8,9 +8,11 @@ multiwindow interface. Original code, original synthesized sounds, built on
 [JUCE](https://juce.com/) — no account, no cloud, no browser, no internet
 connection required.
 
-**This repository is the release drop.** It contains the prebuilt Windows binary,
-the current feature-status matrix and this README. Development sources live in
-the main project workspace.
+**This repository is the release drop and carries the complete corresponding
+source** for the shipped binary, as required by AGPL-3.0-only. It contains the
+prebuilt Windows executable, the full application source (`src/`), the native
+test suite (`tests/`), the build system (`CMakeLists.txt`, `build.cmd`), the
+current feature-status matrix and this README.
 
 ---
 
@@ -33,10 +35,26 @@ Hardware MIDI is intentionally not implemented.
 
 | Item | Value |
 | --- | --- |
-| Release binary | `pulse_studio.exe` (v0.13.0) |
+| Release binary | `pulse_studio.exe` (v0.37.0) |
 | Platform | Windows x64 (native, no installer) |
-| Size | ~5.3 MB |
+| Size | ~7.3 MB |
 | Framework | JUCE 8.0.16-security |
+| Source | `src/` · `tests/` · `CMakeLists.txt` · `build.cmd` |
+
+---
+
+## Build from source
+
+The complete corresponding source for `pulse_studio.exe` is in this repository:
+application code in `src/`, the native test suite in `tests/`, and the build
+system in `CMakeLists.txt` and `build.cmd`.
+
+Requires Visual Studio C++ Build Tools, the Windows SDK, CMake, Ninja and Git.
+Run `build.cmd`; it initializes MSVC, fetches the pinned JUCE 8.0.16-security
+sources into `vendor/JUCE` (commit `ea77444750de45e036e0279bb0291144bf8e3688`),
+configures and builds the app and tests, then runs the engine/persistence suite.
+The resulting executable is written to
+`build-native\PulseStudio_artefacts\Release\`.
 
 ---
 
@@ -138,7 +156,9 @@ license does not extend to your audio output.
 the same AGPL-3.0-only terms and include the complete corresponding source.
 
 **Source availability.** The complete corresponding source for this binary is
-available at: <https://github.com/nalexand/pulse>
+included in this repository (`src/`, `tests/`, `CMakeLists.txt`, `build.cmd`)
+at <https://github.com/nalexand/pulse>, together with the build instructions
+above that fetch the pinned JUCE sources.
 
 **No warranty.** To the extent permitted by applicable law the program is
 provided "as is" without warranty of any kind, including merchantability and
