@@ -1,20 +1,20 @@
-# Feature status — Pulse Studio 0.12
+# Feature status — Pulse Studio 0.29.1
 
 Full implementation scope remains in IMPLEMENTATION_PLAN.md. Partial means a functioning subset exists; it does not mean the full numbered feature is complete. Planned features have no working implementation yet. None of the full 107-feature roadmap is being declared fully verified by this release.
 
 | Original ID | Feature | Status | Current boundary |
 | --- | --- | --- | --- |
-| 1 | Project creation, saving, and loading | Partial | Atomic JSON save/load and validation; schemas 1-6 readable; schema 7 adds stable Song markers and linked section loops to recording settings, sampler ranges/loops and mixer effects/routing; plugin states pending |
+| 1 | Project creation, saving, and loading | Partial | Atomic JSON save/load and validation, safe last-saved/opened project startup; schemas 1-12 readable; schema 13 stores complete wavetable patches and per-insert stereo width/mono/swap/polarity/trim alongside complete Analog/FM patch state and ordered EQ/compression/reverb/chorus/flanger/phaser settings alongside Song markers, recording settings, sampler ranges/loops and mixer effects/routing; plugin states pending |
 | 2 | Project templates | Partial | Six built-in starters; searchable local browser; personal full-project or channel/mixer packages with sample collection; independent instances, History backup and undo; recording-specific presets, per-asset selection, layout capture and startup-template preference pending |
 | 3 | Autosave and crash recovery | Partial | 15-second local recovery snapshots; journal/crash-injection coverage pending |
 | 4 | Project version history | Partial | Named local version files; version browser and comparisons pending |
 | 5 | Unlimited undo and redo | Partial | 100-entry undo/redo; disk spill and unlimited history pending |
 | 6 | Sample collection and portable projects | Partial | SHA-256 sample collection and relative paths; archive packaging pending |
 | 7 | Missing sample and plugin recovery | Partial | Background audio audit, manual/local folder relinking, shared reference updates, ambiguity/checksum/range validation, undo and portable repaired saves; renamed-file fingerprint search and plugin recovery pending |
-| 8 | Customizable workspace and window layouts | Partial | Movable, resizable, closable/maximizable editor panels with local stacking/layout persistence; named presets and multiple monitors pending |
-| 9 | Themes and interface scaling | Partial | Familiar slate-gray interface and native DPI handling; custom themes and scaling controls pending |
+| 8 | Customizable workspace and window layouts | Partial | Movable, resizable, closable/maximizable editor panels with local stacking/layout persistence; main window fits monitor work areas and Ctrl+Shift+H recovers offscreen bounds; named presets and independent editor windows across monitors pending |
+| 9 | Themes and interface scaling | Partial | Familiar slate-gray interface, native DPI handling and automatic workspace downscaling on small windows; custom themes and manual scaling controls pending |
 | 10 | Customizable keyboard shortcuts | Partial | FL-style window and editing shortcuts; remapping pending |
-| 11 | Command palette and feature search | Planned | See full plan |
+| 11 | Command palette and feature search | Partial | Ctrl+P token search over editor actions, channels, patterns, clips, markers, factory instruments, factory/personal sounds, templates and help; shared action dispatch, keyboard navigation, disabled/stale context protection; plugin/full-help indexing and fuzzy matching pending |
 | 12 | Contextual help and interactive tutorials | Partial | Local quick-start help; searchable tutorials pending |
 | 13 | Audio device configuration | Partial | Windows Audio input/output, rate/buffer and input-channel selection; ASIO pending |
 | 14 | Low-latency audio processing | Partial | Preallocated render path and native smoke test; sustained latency benchmarks pending |
@@ -29,16 +29,16 @@ Full implementation scope remains in IMPLEMENTATION_PLAN.md. Partial means a fun
 | 23 | Time signatures and meter changes | Planned | See full plan |
 | 24 | Metronome, count-in, and tap tempo | Partial | Accented metronome including first beat, one/two-bar count-in, median tap tempo and gesture undo; click sound/level configuration pending |
 | 25 | Channel rack | Partial | Rack with pan/volume controls and channel add/clone/delete; grouping and arbitrary routing pending |
-| 26 | Step sequencer | Partial | Grouped 32-step rack with drag painting/erasing and melodic previews; variable lengths pending |
-| 27 | Pattern creation and management | Partial | Create/clone/rename/select patterns with picker and navigation; merge/split pending |
+| 26 | Step sequencer | Partial | Pattern-driven 4-256-step display, template-length recall and 16-64-step whole-beat length dialog with grouped undo and stale/recording guards; per-channel polymetric lengths pending |
+| 27 | Pattern creation and management | Partial | Create/clone/rename/select patterns, usage counts, selected-clip Make unique, channel split with playback-preserving instance relinking and one-pass layered merge, atomic capacity guards and grouped undo; reorder and confirmed unused-pattern deletion with safe clipboard identities and undo; colours, sequential merge and deletion of used patterns pending |
 | 28 | Probability, ratchets, and conditional steps | Partial | Probability and ratchets; conditional steps pending |
 | 29 | Swing and groove templates | Partial | Swing; groove templates/extraction pending |
-| 30 | Euclidean rhythm generation | Partial | Fixed local Euclidean rhythm generation; parameter panel pending |
+| 30 | Euclidean rhythm generation | Partial | Euclidean steps/pulses/rotation/repeats, typed counters, pitch/range, velocity/gate/seeded variation, fill or pitch-only replacement, live A/B preview, original-note overlay and one-step Apply/undo; invalid/dense/Song-capacity guards; local named/factory rhythm presets with JSON import/export; multichannel and live generative processors pending |
 | 31 | Piano roll | Partial | Draw/paint/erase/move/resize/transpose, ghost notes, selection/lasso, clipboard, duplicate, snap and zoom/scroll; advanced editing pending |
 | 32 | Note velocity and expression editing | Partial | Velocity editing only; expression lanes pending |
 | 33 | Chord, scale, and key tools | Partial | Scale shading and minor chord stamps; key/chord progression tools pending |
-| 34 | Quantization and humanization | Partial | Basic quantization; strength/preview/humanization pending |
-| 35 | Arpeggiator and MIDI effects | Planned | See full plan |
+| 34 | Quantization and humanization | Partial | Selected/all-lane quantize with grid/strength/swing/window and independent duration strength; seeded timing/length/velocity humanize with chord timing; audible A/B, original-note overlay, explicit apply/cancel, one-step undo and save/export guards; local named/factory presets and JSON import/export; groove files, exclusion rules and expression handling pending |
+| 35 | Arpeggiator and MIDI effects | Partial | Selected/all-note held-chord arpeggiator with six orders, straight/triplet rates, octave expansion, transpose, gate/velocity, chord restart, seeded random order, audible A/B, atomic capacity guards and one-step commit/undo; unselected notes and source probability/ratchets preserved; local named/factory arpeggiator presets and JSON import/export; live event processors and general MIDI-effects chains pending |
 | 36 | Microtonal tuning | Planned | See full plan |
 | 37 | MIDI recording and overdubbing | Partial | Typing-keyboard overdub, count-in, bounded punch recording and grouped take undo; replace/take lanes pending |
 | 38 | Retrospective MIDI capture | Planned | See full plan |
@@ -55,8 +55,8 @@ Full implementation scope remains in IMPLEMENTATION_PLAN.md. Partial means a fun
 | 49 | Multi-input audio recording | Partial | First/second enabled mono input or stereo to one Playlist track, raw input meters, dry background 24-bit WAV capture and monitoring through selected source effects/buses with independent gain; multiple destinations and latency compensation pending |
 | 50 | Recording takes and comping | Partial | Separate retained local take files with undoable Playlist insertion; comping and take-lane UI pending |
 | 51 | Retrospective audio capture | Planned | See full plan |
-| 52 | Waveform editor | Partial | Stereo selection/zoom, independent preview, reverse/normalize/fades into retained local copies, editor undo, and selected ranges to sampler/Playlist; cut/splice and advanced processing pending |
-| 53 | Audio slicing and transient detection | Planned | See full plan |
+| 52 | Waveform editor | Partial | Stereo selection/zoom and preview; cut/copy/insert or replace paste/duplicate/trim/delete/silence plus reverse/normalize/fades in retained float32 copies; separate 20-edit undo/redo including selection/view; selected ranges to sampler/Playlist. Same-rate clipboard only; background editing, persistent edit sessions, resampling and advanced processing pending |
+| 53 | Audio slicing and transient detection | Partial | Stereo amplitude-rise detection with floor/ratio/minimum gap, 256 temporary editable frame markers and contiguous original-speed grid/irregular Playlist slicing with batch undo/redo; spectral detection, persistent maps and advanced marker editing pending |
 | 54 | Time stretching and pitch shifting | Planned | See full plan |
 | 55 | Audio warping and tempo matching | Planned | See full plan |
 | 56 | Pitch correction and vocal editing | Planned | See full plan |
@@ -68,14 +68,14 @@ Full implementation scope remains in IMPLEMENTATION_PLAN.md. Partial means a fun
 | 62 | Sample browser, tagging, and favorites | Partial | Factory/project Browser plus background local folder navigation, current-folder name search, original-speed previews and 32 folder bookmarks; recursive metadata index, file favorites and tagging pending |
 | 63 | Sample preview synchronized to project tempo | Planned | Independent stereo preview works at original speed; synchronization/stretching remains pending |
 | 64 | Sample recording and resampling | Partial | Local input takes can be loaded in samplers; internal resampling capture pending |
-| 65 | Sample chopping and beat slicing | Planned | See full plan |
-| 66 | Wavetable synthesizer | Planned | See full plan |
-| 67 | Subtractive synthesizer | Partial | Basic polyphonic oscillator/envelope instruments; full subtractive synth editor pending |
-| 68 | FM synthesizer | Planned | See full plan |
+| 65 | Sample chopping and beat slicing | Partial | Waveform selection to Playlist at five beat grids or detected/manually corrected attack markers, preserving exact source offsets and short final slices; sampler pad distribution, choke groups and persistent slice mapping pending |
+| 66 | Wavetable synthesizer | Partial | Pulse Wavetable: eight original four-frame families, harmonic mipmaps, position/envelope/LFO morphing, two oscillators, shared ADSR/filter/LFO, waveform display, native controls/undo, project/template/export and sound/library persistence; user table import/authoring, unison, sync, oversampling and automation pending |
+| 67 | Subtractive synthesizer | Partial | Pulse Analog two-oscillator editor, four waveforms with PolyBLEP saw/pulse, detune/coarse/pulse width/sub/noise, ADSR, resonant low-pass/envelope and vibrato/filter LFO, smoothed controls and patch persistence; unison, sync, modulation matrix, polyphony modes and synth automation pending |
+| 68 | FM synthesizer | Partial | Pulse FM fixed two-operator sine engine with ratio/index/decay and operator mix, shared ADSR/filter/LFO editor and patches; more operators/algorithms, feedback, oversampling and synth automation pending |
 | 69 | Additive synthesizer | Planned | See full plan |
 | 70 | Granular synthesizer | Planned | See full plan |
 | 71 | Physical modeling instruments | Planned | See full plan |
-| 72 | Built-in instrument and preset library | Partial | Original synthesized sounds and demo; preset browser/asset packs pending |
+| 72 | Built-in instrument and preset library | Partial | 56 original factory sounds across Analog/FM/Wavetable plus up to 128 personal sounds, stable identities, categories/favorites, native library management and Ctrl+P search, explicit update/rename/delete, atomic local library and .pulsesound import/export; sound/library schema 2 reads schema 1; complete synth state stays embedded in projects/templates/recovery. Drum kits, pack/recursive-folder indexing, richer tags, multi-library/bulk merge and asset packs pending |
 | 73 | Plugin hosting | Planned | See full plan |
 | 74 | Plugin scanning and management | Planned | See full plan |
 | 75 | Plugin crash isolation | Planned | See full plan |
@@ -85,19 +85,19 @@ Full implementation scope remains in IMPLEMENTATION_PLAN.md. Partial means a fun
 | 79 | Sends, buses, groups, and sidechains | Partial | Dedicated buses, nested outputs and external compressor detector; send matrices/groups and independent mixer channels pending |
 | 80 | Parallel processing | Planned | See full plan |
 | 81 | Plugin delay compensation | Planned | See full plan |
-| 82 | Equalizer and spectrum analyzer | Partial | Three-band stereo EQ with response display and bypass; variable bands and spectrum analysis pending |
+| 82 | Equalizer and spectrum analyzer | Partial | Three-band stereo EQ plus live Master/selected-channel 2048-point stereo Hann spectrum, calibrated amplitude dBFS, bounded capture and freeze/reset; variable bands, pre/post selection and FFT options pending |
 | 83 | Compressor, limiter, gate, and expander | Partial | Stereo-linked peak compressor, attack/release/makeup, external sidechain and gain-reduction meter; limiter/gate/expander pending |
 | 84 | Multiband dynamics processing | Planned | See full plan |
 | 85 | Reverb, delay, and convolution effects | Partial | Ping-pong delay and per-insert stereo algorithmic reverb; convolution and advanced controls pending |
 | 86 | Distortion, saturation, and amp simulation | Partial | Basic saturation; oversampling/amp simulation pending |
-| 87 | Chorus, flanger, phaser, and modulation effects | Planned | See full plan |
-| 88 | Stereo imaging and spatial audio | Partial | Stereo sampling and panning; width/mid-side/spatial audio pending |
-| 89 | Loudness, peak, phase, and correlation meters | Partial | Mixer peak displays plus raw input dBFS sample-peak meters with transient accumulation and clipping hold; loudness/true-peak/phase pending |
+| 87 | Chorus, flanger, phaser, and modulation effects | Partial | Stereo chorus, flanger and six-stage phaser on source/bus inserts; six editable/smoothed controls per effect, native typed values, bypass, undo, project/template persistence and offline rendering; ordering, eight factory chains, copy/paste and local chain-file exchange also work; tempo sync, effect automation, selectable stage counts and duplicate instances pending |
+| 88 | Stereo imaging and spatial audio | Partial | Stereo sampling/pan plus source/bus width (mid preserved, 0–200% side), mono, input polarity, L/R swap and output trim with smoothing, typed controls, undo and schema-12 project/template persistence; independent mid/side processing, stereo delay and spatial formats pending |
+| 89 | Loudness, peak, phase, and correlation meters | Partial | Live stereo peak/RMS, held peaks, full-scale sample counts and L/R correlation with freeze/reset; raw input peak/clip hold; loudness, true peak, phase scope and export reports pending |
 | 90 | Reference track comparison | Planned | See full plan |
 | 91 | Automation recording and editing | Partial | Draw/drag/delete points, snapping, linear/held segments, clipboard and undo, live control readouts and offline export; recording modes pending |
 | 92 | Automation curves and modulation generators | Partial | Linear and held segments for six mixer targets; tension, generators and plugin/tempo targets pending |
 | 93 | Macro controls and parameter linking | Planned | See full plan |
-| 94 | Modular instrument and effect chains | Planned | See full plan |
+| 94 | Modular instrument and effect chains | Partial | Reorder the six built-in insert effects with stable identities and undo, eight factory chains, clipboard and atomic validated .pulseeffects files; preserve source/mixer/routing state on recall. One instance each; arbitrary processors, duplicate instances, parallel graphs and personal chain indexing pending |
 | 95 | Track freezing, flattening, and bouncing | Planned | See full plan |
 | 96 | Audio export and batch rendering | Partial | Background snapshot WAV/FLAC at 44.1/48/96 kHz, mono/stereo, PCM16/24 or float32 WAV, ranges with timeline warm-up and configurable tails; atomic per-file finalization and cancellation; other codecs, real-time and job queue pending |
 | 97 | Stem and multitrack export | Partial | Isolated source/bus batches share encoding/range/normalization options and include routed processing; additive stems and solo-independent sidechain rendering pending |
@@ -119,3 +119,5 @@ Full implementation scope remains in IMPLEMENTATION_PLAN.md. Partial means a fun
 | 113 | Integrated content downloads | Skipped | Excluded by user |
 | 114 | Cross-platform project compatibility | Planned | See full plan |
 | 115 | FL Studio project import where technically supported | Planned | See full plan |
+
+Release packaging: `package.cmd` creates an offline Windows x64 ZIP with a statically linked MSVC runtime, PE dependency verification, hashes, notices and complete corresponding source including JUCE. Header menus anchor to their controls; context menus anchor to the cursor with target DPI retained. Clean-machine testing on the reported second PC, signed installers and non-Windows binaries remain pending.
