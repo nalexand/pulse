@@ -6,10 +6,10 @@ Pulse Studio 0.31 provides eleven tools for controlling the **open application**
 
 Enable **OPTIONS > Local MCP control**, or start the app with `--workspace "D:\projects\fl_studio" --resume --enable-control`. The setting persists in `data/mcp-settings.json`; disabling it invalidates the current connection. Control starts disabled in a fresh workspace.
 
-The optional server requires Python 3.10+ and its standard library. The workstation itself remains standalone. For this development checkout, register with Codex:
+The optional server requires Python 3.10+ and its standard library. The workstation itself remains standalone. The server is included in this repository at [`tools/pulse_mcp.py`](tools/pulse_mcp.py). From a checkout, register with Codex:
 
 ```powershell
-codex mcp add pulse-studio -- python D:\projects\fl_studio\tools\pulse_mcp.py --workspace D:\projects\fl_studio
+codex mcp add pulse-studio -- python tools/pulse_mcp.py --workspace "<path to this repository>"
 codex mcp get pulse-studio
 ```
 
@@ -51,9 +51,9 @@ Before the first control edit, and before starting another song, the app saves a
 
 ## Verification and example
 
-`python -m unittest discover -s tests -p test_mcp.py -v` tests the stdio protocol and schemas. Core/editor/native tests cover validation, replay/expiry, stale revisions, busy guards, backup, undo, audio and native save/export. `tools/test_mcp_live.py` is restricted to an isolated workspace inside `test-output`.
+`python -m unittest discover -s tests -p test_mcp.py -v` tests the stdio protocol and schemas. Core/editor/native tests cover validation, replay/expiry, stale revisions, busy guards, backup, undo, audio and native save/export.
 
-`tools/compose_vault.py` (portable: `mcp/compose_vault.py`) is an original dark-score recipe using only MCP for song changes. It designs eleven source sounds and one reverb bus, writes ten 16-beat patterns, arranges a 64-bar/76-BPM soundtrack with six sections and Master fades, saves/exports it and starts playback. Its melody and patches are original; it includes no extracted game music or samples. The script starts a separate song after the automatic History backup. Inspect the recipe before rerunning it in a working session.
+[`tools/compose_trawler_nights.py`](tools/compose_trawler_nights.py) is an original 90s happy-hardcore / Eurodance instrumental recipe using only MCP calls. It designs the source sounds and one reverb bus, writes ten 16-beat patterns and arranges a 160 BPM / A-minor track (four-on-the-floor kick, offbeat synth bass, supersaw stabs, gated noise sweeps and an original lead hook), then saves/exports and starts playback. Its melody, harmony and patches are original; it includes no extracted song data or samples. The script starts a separate song after the automatic History backup. Inspect the recipe before rerunning it in a working session.
 
 Third-party plugins, arbitrary audio/sample import through MCP, general scripting, resource subscriptions, HTTP transport and remote control remain outside this initial API.
 
