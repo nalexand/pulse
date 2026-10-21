@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 #include "Recorder.h"
+#include "Project.h"
 #include <cmath>
 #include <chrono>
 namespace pulse {
 using namespace juce;
 Recorder::~Recorder(){finish();}
-Result Recorder::start(const File& file,double rate,int inputChannels){
+Result Recorder::start(const File& file,double rate,int inputChannels,double maximumSeconds){
     if(writer)return Result::fail("A take is already open.");
     if(file.existsAsFile())return Result::fail("Recording destination already exists.");
-    if(rate<8000||rate>192000||inputChannels<1)return Result::fail("Select an audio input in F10 first.");
+    if(!std::isfinite(rate)||rate<8000||rate>192000||inputChannels<1||!std::isfinite(maximumSeconds)||maximumSeconds<=0||maximumSeconds>maxAudioSeconds||maximumSeconds*rate<1)return Result::fail("Select an audio input in F10 first.");
     auto result=file.getParentDirectory().createDirectory();if(result.failed())return result;
-    sampleRate=rate;channels=jlimit(1,2,inputChannels);ring.setSize(channels,(int)rate*2);fifo.setTotalSize(ring.getNumSamples());
+    sampleRate=rate;frameLimit=(uint64_t)std::floor(rate*maximumSeconds);channels=jlimit(1,2,inputChannels);ring.setSize(channels,(int)rate*2);fifo.setTotalSize(ring.getNumSamples());
     std::unique_ptr<OutputStream> output=file.createOutputStream();
     writer=WavAudioFormat().createWriterFor(output,AudioFormatWriterOptions{}.withSampleRate(rate).withNumChannels(channels).withBitsPerSample(24));
     if(!writer)return Result::fail("Cannot create recording WAV.");
@@ -32,7 +33,7 @@ Result Recorder::start(const File& file,double rate,int inputChannels){
 void Recorder::capture(const float* left,const float* right,int frames){
     readers.fetch_add(1,std::memory_order_seq_cst);
     if(enabled.load(std::memory_order_seq_cst)){
-        auto remaining=(uint64_t)(sampleRate*120)-captured.load();int count=(int)jmin((uint64_t)frames,remaining);
+        auto total=captured.load();auto remaining=total<frameLimit?frameLimit-total:0;int count=(int)jmin((uint64_t)jmax(0,frames),remaining);
         int a=0,an=0,b=0,bn=0;fifo.prepareToWrite(count,a,an,b,bn);
         if(an+bn<count)failed.store(true);
         float peak=0;const float* inputs[]={left,right?right:left};

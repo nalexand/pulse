@@ -1,0 +1,58 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+#include "Studio.h"
+namespace pulse {
+using namespace juce;
+namespace {
+AlertWindow* historyDialog(){auto* d=dynamic_cast<AlertWindow*>(Component::getCurrentlyModalComponent());return d&&d->getName()=="Retrospective audio history"?d:nullptr;}
+Component* historyField(const char* name){auto* d=historyDialog();auto* form=d?d->findChildWithID("audio-history-form"):nullptr;return form?form->findChildWithID(name):nullptr;}
+void historyClose(int answer=0){if(auto* d=historyDialog())d->exitModalState(answer);}
+void historyPicture(const File& file){if(auto* d=historyDialog()){FileOutputStream out(file);out.setPosition(0);out.truncate();if(out.openedOk())PNGImageFormat().writeImageToStream(d->createComponentSnapshot(d->getLocalBounds()),out);}}
+}
+bool Studio::seedAudioHistoryFixture(){
+    // Test-only synthetic hardware producer. Hold JUCE's device callback lock so
+    // the live backend cannot enter getNextAudioBlock concurrently with us.
+    const ScopedLock lock(deviceManager.getAudioCallbackLock());
+    int inputs=activeInputs.load(),outputs=activeOutputs.load(),block=(int)monoRight.size();double rate=historyRate.load();
+    activeInputs=2;activeOutputs=2;monoRight.assign(512,0);captureInput.setSize(2,512);historyRate=48000;engine->prepare(48000);
+    bool started=startAudioHistory({15,4,InputMode::stereo});engine->start();engine->seekRequested=4;AudioBuffer<float> audio(2,512);
+    if(started)for(int pos=0;pos<48000;pos+=512){int n=jmin(512,48000-pos);for(int i=0;i<n;++i){audio.setSample(0,i,.25f);audio.setSample(1,i,-.125f);}getNextAudioBlock(AudioSourceChannelInfo(&audio,0,n));}
+    audioHistory.pause();engine->stop();activeInputs=inputs;activeOutputs=outputs;monoRight.assign((size_t)jmax(1,block),0);captureInput.setSize(2,jmax(1,block));historyRate=rate;engine->prepare(rate);
+    return started&&audioHistory.frames()==48000;
+}
+void Studio::runAudioHistoryChecks(const File& folder,const std::function<void(bool,const String&)>& check){
+    auto saved=project;auto oldFile=currentFile;auto undo=undoStack,redo=redoStack;auto rev=revision;bool oldDirty=dirty;int track=selectedTrack;auto options=historyOptions;
+    perform(stop);cancelNoteTool();closeCommandPalette();stopAudioHistory();project=emptyProject();project.songMode=true;project.bpm=120;project.loop=false;project.masterSoftClip=true;project.masterMixer.reverb=true;project.masterMixer.reverbMix=.8f;project.masterMixer.flanger.mix=.7f;project.tracks[7].volume=.1f;project.tracks[7].mixer.reverb=true;selectedTrack=7;currentFile={};publish();undoStack.clear();redoStack.clear();inputMonitor=false;
+    auto original=JSON::toString(projectToJson(project));auto expected=revision;
+    check(!audioHistory.active()&&audioHistory.frames()==0,"input history starts OFF without retained audio");
+    check(!searchCommands(paletteEntries(),"retrospective audio history").empty(),"Ctrl+P discovers retrospective audio history");showAudioHistory();
+    auto* report=dynamic_cast<TextEditor*>(historyField("audio-history-report"));
+    check(historyField("audio-history-seconds")&&historyField("audio-history-memory")&&historyField("audio-history-source")&&historyField("audio-history-track")&&report&&report->isReadOnly(),"native history exposes duration, ring budget, source, destination and read-only report");historyPicture(folder.getChildFile("audio-history-off.png"));historyClose();
+    check(seedAudioHistoryFixture(),"actual Studio callback retains one second of synthetic dry stereo input");
+    check(!audioHistory.active()&&audioHistory.frames()==48000&&revision==expected&&undoStack.empty()&&JSON::toString(projectToJson(project))==original,"input retention changes no project data, revision or Undo");
+    auto wait=[&]{auto deadline=Time::getMillisecondCounterHiRes()+15000;while(historyTask&&!historyTask->done.load(std::memory_order_acquire)&&Time::getMillisecondCounterHiRes()<deadline)Thread::sleep(1);finishAudioHistory();return !historyTask;};
+    check(freezeAudioHistory(false)&&!freezeAudioHistory(false)&&wait()&&historyPreview,"freeze runs one immutable background save with duplicate-start protection");auto frozen=historyFolder.getChildFile("input.wav");
+    check(std::abs(historySnapshot.firstBeat-4)<1e-7&&std::abs(historySnapshot.endBeat-6)<1e-7&&historySnapshot.revision==expected&&historySnapshot.audio.getNumSamples()==48000&&historySnapshot.audio.getSample(0,100)==.25f&&historySnapshot.audio.getSample(1,100)==-.125f,"captured input and exact Song position are independent of channel and master effects");
+    showAudioHistory();report=dynamic_cast<TextEditor*>(historyField("audio-history-report"));check(report&&report->getText().contains("48000 frames")&&report->getText().contains("dry input"),"review presents actual source, timing and preview limits");historyPicture(folder.getChildFile("audio-history-review.png"));historyClose();
+    check(auditionAudioHistory(),"frozen raw input can be auditioned without applying");AudioBuffer<float> audio(2,4096);getNextAudioBlock(AudioSourceChannelInfo(&audio,0,4096));
+    check(!engine->playing.load()&&engine->previewPlaying.load()&&std::abs(audio.getSample(0,2000)-.175f)<1e-6&&std::abs(audio.getSample(1,2000)+.0875f)<1e-6,"raw audition bypasses song routing with explicit common headroom");engine->cancelPreview();inputMonitor=true;check(!auditionAudioHistory(),"live monitoring cannot contaminate frozen raw audition");inputMonitor=false;
+    check(!applyAudioHistory(7,expected-1)&&undoStack.empty(),"stale review revision cannot apply input history");recording=true;check(!applyAudioHistory(7,expected)&&!freezeAudioHistory(false)&&!startAudioHistory(historyOptions),"active take blocks start, freeze and placement");recording=false;
+    auto stamp=frozen.getLastModificationTime();frozen.setLastModificationTime(stamp+RelativeTime::seconds(3));check(!auditionAudioHistory()&&!applyAudioHistory(7,expected),"changed preview file stamp blocks audition and placement");frozen.setLastModificationTime(stamp);
+    check(applyAudioHistory(7,expected)&&undoStack.size()==1&&std::abs(project.clips.back().beat-4)<1e-7&&std::abs(project.clips.back().length-2)<1e-7&&project.clips.back().audioPath==frozen.getFullPathName(),"To Playlist places the captured beat/range as exactly one musical Undo");perform(undoAction);check(JSON::toString(projectToJson(project))==original&&frozen.existsAsFile(),"Undo restores the original arrangement while preserving the Redo source");perform(redoAction);check(project.clips.back().audioPath==frozen.getFullPathName()&&frozen.existsAsFile(),"Redo restores the same verified local recording");stopAudioHistory();check(!audioHistory.active()&&audioHistory.bytes()==0&&frozen.existsAsFile(),"Off clears retention while keeping applied/referenced audio");
+    check(seedAudioHistoryFixture()&&freezeAudioHistory(false)&&wait()&&historyPreview,"fresh history can follow an applied recall");auto unused=historyFolder;stopAudioHistory();check(!unused.exists()&&audioHistory.bytes()==0,"Off deletes only the unassigned owned preview and clears ring memory");
+    check(seedAudioHistoryFixture()&&freezeAudioHistory(false),"cancellable freeze begins from retained input");if(historyTask)historyTask->cancel=true;check(wait()&&!historyPreview&&!audioHistory.active()&&audioHistory.frames()==48000,"cancelled freeze retains paused memory for explicit retry");
+    check(freezeAudioHistory(false),"paused input can retry Freeze after cancellation");stopAudioHistory();check(wait()&&!historyTask&&!audioHistory.active()&&audioHistory.bytes()==0&&!historyPreview,"Off during worker cancellation eventually clears all unassigned retention");
+    HistoryOptions stored;check(loadHistoryOptions(root.getChildFile("data/audio-history-settings.json"),stored).wasOk()&&stored.seconds==15&&stored.memoryMiB==4&&!JSON::parse(root.getChildFile("data/audio-history-settings.json")).hasProperty("enabled"),"local history settings never persist microphone enablement");
+    project=std::move(saved);currentFile=oldFile;undoStack=std::move(undo);redoStack=std::move(redo);revision=rev;dirty=oldDirty;selectedTrack=track;historyOptions=options;publish();
+}
+void Studio::runAudioHistoryTransportTick(){
+    auto put=[&](const char* key,bool ok){transportResults.getDynamicObject()->setProperty(key,ok);};
+    auto pending=[&]{if(!historyTask)return false;int n=(int)transportResults["audioHistoryWait"];if(n>=500)return false;transportResults.getDynamicObject()->setProperty("audioHistoryWait",n+1);--transportTicks;return true;};
+    if(transportTicks==7400){perform(stop);cancelNoteTool();stopAudioHistory();project=emptyProject();project.songMode=true;project.bpm=120;project.loop=false;project.masterSoftClip=true;project.masterMixer.reverb=true;project.masterMixer.reverbMix=.8f;project.masterMixer.flanger.mix=.7f;project.tracks[7].volume=.1f;project.tracks[7].mixer.reverb=true;selectedTrack=7;currentFile={};publish();undoStack.clear();redoStack.clear();inputMonitor=false;transportResults.getDynamicObject()->setProperty("audioHistoryOriginal",JSON::toString(projectToJson(project)));transportResults.getDynamicObject()->setProperty("audioHistoryRevision",(int64)revision);put("nativeAudioHistoryOff",!audioHistory.active()&&audioHistory.frames()==0);showAudioHistory();put("nativeAudioHistoryControls",historyField("audio-history-source")&&historyField("audio-history-memory")&&historyField("audio-history-track"));historyPicture(transportReport.getSiblingFile("native-audio-history-off.png"));historyClose();put("nativeAudioHistoryCapture",seedAudioHistoryFixture());freezeAudioHistory(true);}
+    if(transportTicks==7410){if(pending())return;put("nativeAudioHistoryReview",historyPreview&&historyDialog()&&historySnapshot.audio.getNumSamples()==48000);put("nativeAudioHistoryTiming",std::abs(historySnapshot.firstBeat-4)<1e-7&&std::abs(historySnapshot.endBeat-6)<1e-7&&historySnapshot.revision==(uint64_t)(int64)transportResults["audioHistoryRevision"]);put("nativeAudioHistoryRaw",historySnapshot.audio.getNumSamples()>100&&historySnapshot.audio.getSample(0,100)==.25f&&historySnapshot.audio.getSample(1,100)==-.125f);historyPicture(transportReport.getSiblingFile("native-audio-history-review.png"));engine->observedPeak=0;historyClose(3);}
+    if(transportTicks==7418)historyPicture(transportReport.getSiblingFile("native-audio-history-review.png"));
+    if(transportTicks==7420){put("nativeAudioHistoryAudition",engine->previewPlaying.load()&&!engine->playing.load()&&engine->observedPeak.load()>.17f&&engine->observedPeak.load()<.18f);historyClose(7);}
+    if(transportTicks==7430){put("nativeAudioHistoryStop",!engine->previewPlaying.load());historyClose(4);}
+    if(transportTicks==7440){put("nativeAudioHistoryApply",undoStack.size()==1&&!project.clips.empty()&&project.clips.back().isAudio()&&std::abs(project.clips.back().beat-4)<1e-7&&std::abs(project.clips.back().length-2)<1e-7);perform(undoAction);put("nativeAudioHistoryUndo",JSON::toString(projectToJson(project))==transportResults["audioHistoryOriginal"].toString());perform(redoAction);put("nativeAudioHistoryRedo",!project.clips.empty()&&project.clips.back().isAudio()&&File(project.clips.back().audioPath).existsAsFile());seedAudioHistoryFixture();freezeAudioHistory(false);}
+    if(transportTicks==7450){if(pending())return;put("nativeAudioHistoryStale",!applyAudioHistory(7,revision-1));recording=true;put("nativeAudioHistoryRecording",!applyAudioHistory(7,revision)&&!freezeAudioHistory(false)&&!startAudioHistory(historyOptions));recording=false;auto unused=historyFolder;stopAudioHistory();put("nativeAudioHistoryClear",audioHistory.bytes()==0&&!audioHistory.active()&&!historyPreview&&!unused.exists());perform(stop);}
+}
+}

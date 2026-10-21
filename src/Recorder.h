@@ -10,7 +10,7 @@ namespace pulse {
 class Recorder {
 public:
     ~Recorder();
-    juce::Result start(const juce::File&,double rate,int inputChannels);
+    juce::Result start(const juce::File&,double rate,int inputChannels,double maximumSeconds=120);
     void capture(const float* left,const float* right,int frames);
     juce::Result finish();
     bool isActive() const { return enabled.load(); }
@@ -18,6 +18,9 @@ public:
     float peak() const { return inputPeak.load(); }
     bool needsStop() const { return failed.load() || limitReached.load(); }
     double rate() const { return sampleRate; }
+    double limitSeconds()const{return frameLimit/sampleRate;}
+    uint64_t maxFrames()const{return frameLimit;}
+    bool reachedLimit()const{return limitReached.load();}
 private:
     juce::AudioBuffer<float> ring;
     juce::AbstractFifo fifo{1};
@@ -28,6 +31,6 @@ private:
     std::atomic<uint64_t> captured{0};
     std::atomic<float> inputPeak{0};
     double sampleRate=48000;
-    int channels=1;
+    int channels=1;uint64_t frameLimit=0;
 };
 }

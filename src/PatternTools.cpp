@@ -10,7 +10,7 @@ Result validate(const Project& p,int pattern){
     const auto& source=p.patterns[(size_t)pattern];if(source.lanes.size()!=p.tracks.size())return Result::fail("Pattern channel lanes do not match the project.");
     NoteToolOptions identity;identity.positionStrength=0;std::vector<Note> checked;
     for(const auto& lane:source.lanes){auto r=processNotes(lane,source.length,{},identity,checked);if(r.failed())return r;}
-    for(const auto& clip:p.clips)if(clip.track<0||clip.track>=(int)p.tracks.size()||!std::isfinite(clip.beat)||clip.beat<0||clip.beat>4096||!std::isfinite(clip.length)||clip.length<=0||clip.length>600||(!clip.isAudio()&&!clip.isAutomation()&&(clip.pattern<0||clip.pattern>=(int)p.patterns.size())))return Result::fail("Invalid Playlist reference; pattern edit cancelled.");
+    for(const auto& clip:p.clips)if(clip.track<0||clip.track>=(int)p.tracks.size()||!std::isfinite(clip.beat)||clip.beat<0||clip.beat>4096||!std::isfinite(clip.length)||clip.length<=0||clip.length>maxClipLength(clip)||(!clip.isAudio()&&!clip.isAutomation()&&(clip.pattern<0||clip.pattern>=(int)p.patterns.size())))return Result::fail("Invalid Playlist reference; pattern edit cancelled.");
     return Result::ok();
 }
 String uniqueName(const Project& p,const String& requested){

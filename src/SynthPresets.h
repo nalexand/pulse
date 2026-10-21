@@ -10,7 +10,7 @@ juce::Result synthPresetFromJson(const juce::var&,SynthPreset&);
 juce::Result saveSynthPreset(const SynthPreset&,const juce::File&);
 juce::Result loadSynthPreset(const juce::File&,SynthPreset&);
 struct SynthParameterSpec {const char* name;double low,high;bool logarithmic;const char* unit;};
-constexpr int synthParameterCount=25;
+constexpr int synthParameterCount=48;
 const std::array<SynthParameterSpec,synthParameterCount>& synthParameterSpecs();
 double synthParameterValue(const Track&,int);
 double synthParameterNormal(int,double value);

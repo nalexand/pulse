@@ -1,6 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 #include "TypingPerformance.h"
 static void testTyping(const File& root){
+    expect(TypingSettings{}.octave==3,"new typing preferences start Z at C3");
+    const char* lower="zxcvbnm,./";const int lowOffsets[]={0,2,4,5,7,9,11,12,14,16};
+    for(int i=0;i<10;++i)expect(typingKeyOffset(lower[i],lower[i])==lowOffsets[i],"all Z-to-slash white keys have piano intervals");
+    const char* upper="qwertyuiop[]";const int highOffsets[]={12,14,16,17,19,21,23,24,26,28,29,31};
+    for(int i=0;i<12;++i)expect(typingKeyOffset(upper[i],upper[i])==highOffsets[i],"all Q-to-right-bracket white keys have piano intervals");
+    for(auto pair:std::initializer_list<std::pair<char,int>>{{'s',1},{'d',3},{'g',6},{'h',8},{'j',10},{'l',13},{';',15},{'2',13},{'3',15},{'5',18},{'6',20},{'7',22},{'9',25},{'0',27},{'=',30}})expect(typingKeyOffset(pair.first,pair.first)==pair.second,"black piano keys fill both extended rows correctly");
+    expect(typingKeyOffset('Z','Z')==0&&typingKeyOffset('[','{')==29&&typingKeyOffset('/','?')==16&&typingKeyOffset('2','@')==13,"shifted text preserves physical piano key identity");
+    expect(typingKeyOffset('a','a')==-1&&typingKeyOffset('1','1')==-1&&typingKeyOffset(0x10025,0)==-1,"unmapped letters, numbers and navigation keys are not piano keys");
     TypingCapture capture;std::vector<Note> notes={{0,1,60,.8f}};double length=99;
     expect(capture.phrase(1000,120,notes,length).failed()&&notes.size()==1&&length==99,"empty retrospective recall leaves caller output unchanged");
     capture.noteOn(60,.25f,1000);capture.noteOn(64,.75f,1250);capture.noteOff(60,2000);capture.noteOff(64,2250);

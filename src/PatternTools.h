@@ -4,6 +4,9 @@
 #include <set>
 namespace pulse {
 enum class PatternMergePolicy { keepAll,skipExact,preferFirst,preferSecond };
+enum class NotePasteMode { atCursor,originalPositions,atStart };
+juce::Result pasteLaneNotes(const std::vector<Note>& copied,const std::vector<Note>& destination,double length,NotePasteMode,double cursor,bool replace,std::vector<Note>& output,double& outputLength);
+juce::Result copyNotesToPattern(const Project&,int sourcePattern,int sourceTrack,const std::set<int>& selection,int destinationPattern,int destinationTrack,bool replace,bool alignStart,Project& output);
 juce::String patternMergePolicyName(PatternMergePolicy);
 struct PatternEditStats { std::vector<int> created;int relinked=0;int removed=-1,movedFrom=-1,movedTo=-1;std::vector<int> removedClips;int skippedNotes=0,extractedNotes=0,movedNotes=0,sourceTrack=-1;double shiftBeats=0; };
 juce::Result makeClipPatternUnique(const Project&,int clip,Project& output,PatternEditStats* =nullptr);

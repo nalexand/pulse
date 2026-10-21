@@ -1,0 +1,37 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+#include "ProjectVersions.h"
+#include "ProjectAssets.h"
+#include <juce_cryptography/juce_cryptography.h>
+#include <algorithm>
+namespace pulse {
+using namespace juce;
+namespace {
+constexpr int64 versionLimit=32LL*1024*1024;
+String stamp(const File& file){return String(file.getSize())+"|"+String(file.getLastModificationTime().toMilliseconds());}
+bool cancelled(const std::atomic<bool>* cancel){return cancel&&cancel->load();}
+int noteCount(const Project& project){int count=0;for(const auto& pattern:project.patterns)for(const auto& lane:pattern.lanes)count+=(int)lane.size();return count;}
+bool matches(const String& query,const String& name){for(const auto& word:StringArray::fromTokens(query.trim()," \t\r\n",""))if(!name.containsIgnoreCase(word))return false;return true;}
+String cleanTitle(String title){title=title.replaceCharacters("/\\:*?\"<>|","_________").substring(0,64).trim();for(int i=0;i<title.length();++i)if(title[i]<32)title=title.replaceSection(i,1,"_");return title.isEmpty()?String("Untitled"):title;}
+}
+String projectVersionToken(const File& file){if(!file.existsAsFile()||file.isSymbolicLink()||file.getSize()>versionLimit)return "unavailable";return stamp(file)+"|"+SHA256(file).toHexString();}
+std::vector<ProjectVersion> scanProjectVersions(const File& library,const String& query,String& message,const std::atomic<bool>* cancel){
+    std::vector<ProjectVersion> rows;int visited=0,skipped=0;bool limited=false;if(query.length()>160){message="Version search is limited to 160 characters.";return rows;}if(!library.exists()){message="No saved versions yet. Use Save new version or Save named version.";return rows;}if(!library.isDirectory()||library.isSymbolicLink()){message="Version library is unavailable.";return rows;}
+    for(const auto& item:RangedDirectoryIterator(library,false,"*",File::findFiles,File::FollowSymlinks::no)){if(cancelled(cancel)){message="Version scan cancelled.";return {};}if(++visited>maxVersionScan){limited=true;break;}auto file=item.getFile();if(file.isSymbolicLink()||!file.hasFileExtension("pulse"))continue;if(file.getSize()<=0||file.getSize()>versionLimit){++skipped;continue;}auto name=file.getFileNameWithoutExtension();if(matches(query,name))rows.push_back({file,name,stamp(file),file.getLastModificationTime(),file.getSize()});}
+    std::sort(rows.begin(),rows.end(),[](const ProjectVersion& a,const ProjectVersion& b){if(a.modified!=b.modified)return a.modified>b.modified;return a.name.compareNatural(b.name)<0;});if(rows.size()>maxVersionRows){rows.resize(maxVersionRows);limited=true;}message=String((int)rows.size())+" saved versions"+(query.isEmpty()?String():" matching: "+query)+". Newest first.";if(skipped)message+=" Skipped "+String(skipped)+" empty/oversized files.";if(limited)message+=" Listing limit reached; refine Find.";return rows;
+}
+Result readProjectVersion(const ProjectVersion& row,Project& output,String& token){
+    if(!row.file.hasFileExtension("pulse")||row.file.isSymbolicLink()||!row.file.existsAsFile()||row.file.getSize()<=0||row.file.getSize()>versionLimit||stamp(row.file)!=row.stamp)return Result::fail("This version changed or is unavailable. Refresh the version list.");auto before=projectVersionToken(row.file);Project next;auto result=loadProject(row.file,next);if(result.failed())return result;if(projectVersionToken(row.file)!=before)return Result::fail("Version changed while reading. Refresh the list.");output=absoluteAssets(next,row.file.getParentDirectory());token=before;return Result::ok();
+}
+Result saveProjectVersion(const Project& source,const File& base,const File& library,const String& label,File& saved,const std::atomic<bool>* cancel){
+    if(cancelled(cancel))return Result::fail("Version save cancelled. Existing versions retained.");if(label.length()>64||label!=label.trim()||label.containsAnyOf("/\\:*?\"<>|"))return Result::fail("Use a version label of up to 64 characters without file-name separators.");for(auto c:label)if(c<32||c==127)return Result::fail("Version labels cannot contain control characters.");if(library.isSymbolicLink())return Result::fail("Choose an ordinary local version folder.");Project validated;auto result=projectFromJson(projectToJson(source),validated);if(result.failed())return result;
+    auto references=projectAssets(validated,base);inspectProjectAssets(references,validated,cancel);if(cancelled(cancel))return Result::fail("Version save cancelled. Existing versions retained.");for(const auto& row:references)if(row.issue!=AssetIssue::ready&&row.issue!=AssetIssue::emptySampler)return Result::fail("Cannot save version: "+row.file.getFileName()+" / "+row.detail);
+    result=library.createDirectory();if(result.failed())return result;auto name=cleanTitle(source.title)+"_"+Time::getCurrentTime().formatted("%Y%m%d_%H%M%S")+(label.isEmpty()?String():"_"+label)+"_"+Uuid().toString();auto target=library.getChildFile(name+".pulse");if(target.exists())return Result::fail("Version identity collision. Save again.");Project collected;result=collectAssets(validated,base,target,collected);if(result.failed())return result;if(cancelled(cancel))return Result::fail("Version save cancelled. Collected audio is retained; no snapshot was published.");result=saveProject(collected,target);if(result.failed())return result;saved=target;return Result::ok();
+}
+String compareProjectVersion(const Project& current,const File& currentBase,const Project& saved,const File& savedBase){
+    auto a=absoluteAssets(current,currentBase),b=absoluteAssets(saved,savedBase);auto first=projectToJson(a),second=projectToJson(b);auto different=[](const var& x,const var& y){return JSON::toString(x,false,22)!=JSON::toString(y,false,22);};int changedTracks=0,changedLanes=0;
+    for(int i=0;i<jmax((int)a.tracks.size(),(int)b.tracks.size());++i)changedTracks+=i>=(int)a.tracks.size()||i>=(int)b.tracks.size()||different(first["tracks"][i],second["tracks"][i]);
+    for(int p=0;p<jmax((int)a.patterns.size(),(int)b.patterns.size());++p){int lanes=jmax(p<(int)a.patterns.size()?(int)a.patterns[(size_t)p].lanes.size():0,p<(int)b.patterns.size()?(int)b.patterns[(size_t)p].lanes.size():0);for(int t=0;t<lanes;++t)changedLanes+=p>=(int)a.patterns.size()||p>=(int)b.patterns.size()||t>=(int)a.patterns[(size_t)p].lanes.size()||t>=(int)b.patterns[(size_t)p].lanes.size()||a.patterns[(size_t)p].lanes[(size_t)t]!=b.patterns[(size_t)p].lanes[(size_t)t];}
+    String text="Current song -> selected version\nTitle: "+a.title+" -> "+b.title+"\nTempo: "+String(a.bpm,3)+" -> "+String(b.bpm,3)+" BPM\nChannels: "+String((int)a.tracks.size())+" -> "+String((int)b.tracks.size())+" ("+String(changedTracks)+" channel settings changed)\nPatterns: "+String((int)a.patterns.size())+" -> "+String((int)b.patterns.size())+"\nNotes: "+String(noteCount(a))+" -> "+String(noteCount(b))+" ("+String(changedLanes)+" channel/pattern lanes changed)\nPlaylist clips: "+String((int)a.clips.size())+" -> "+String((int)b.clips.size())+"\nSong markers: "+String((int)a.markers.size())+" -> "+String((int)b.markers.size());
+    text+="\nArrangement: "+String(different(first["clips"],second["clips"])?"changed":"same")+"; markers: "+String(different(first["markers"],second["markers"])?"changed":"same")+"; project notes: "+String(a.notes!=b.notes?"changed":"same");text+="\nComplete saved project data: "+String(different(first,second)?"differs":"identical")+". Compare is structural, not an audio waveform comparison.";return text;
+}
+}

@@ -35,9 +35,9 @@ Hardware MIDI is intentionally not implemented.
 
 | Item | Value |
 | --- | --- |
-| Release binary | `pulse_studio.exe` (v0.37.0) |
+| Release binary | `pulse_studio.exe` (v0.75.0) |
 | Platform | Windows x64 (native, no installer) |
-| Size | ~7.3 MB |
+| Size | ~9.7 MB |
 | Framework | JUCE 8.0.16-security |
 | Source | `src/` · `tests/` · `CMakeLists.txt` · `build.cmd` |
 

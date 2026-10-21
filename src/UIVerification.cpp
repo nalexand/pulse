@@ -5,15 +5,42 @@
 
 namespace pulse {
 using namespace juce;
-bool Studio::runEditorChecks(const File& folder,bool typingOnly,bool arrangementOnly,bool appearanceOnly,bool selectionOnly,bool sectionsOnly,bool resamplingOnly){
+bool Studio::runEditorChecks(const File& folder,bool typingOnly,bool arrangementOnly,bool appearanceOnly,bool selectionOnly,bool sectionsOnly,bool resamplingOnly,bool browserKeyboardOnly,bool clipboardOnly,bool samplesOnly,bool archivesOnly,bool harmonyOnly,bool versionsOnly,bool shortcutsOnly,bool samplerOnly,bool playlistOnly){
     // Tests own their local data, including recovery and saved window layouts.
-    root=folder;
+    synchronizeAutosave();root=folder;
     root.getChildFile("data").createDirectory();
     folder.createDirectory();Array<var> results;int failed=0;
     auto check=[&](bool ok,const String& name){auto* d=new DynamicObject();d->setProperty("check",name);d->setProperty("passed",ok);results.add(var(d));if(!ok)++failed;};
-    if(typingOnly||arrangementOnly||appearanceOnly||selectionOnly||sectionsOnly||resamplingOnly){if(resamplingOnly)runWaveResampleChecks(folder,check);else if(typingOnly)runTypingChecks(folder,check);else if(sectionsOnly)runSectionClipChecks(folder,check);else if(selectionOnly)runPatternSelectionChecks(folder,check);else if(appearanceOnly)runAppearanceChecks(folder,check);else runSequenceChecks(folder,check);auto* report=new DynamicObject();report->setProperty("failures",failed);report->setProperty("checks",results);folder.getChildFile("editor-checks.json").replaceWithText(JSON::toString(var(report),false));dirty=false;return failed==0;}
+    bool audioHistoryOnly=JUCEApplication::getCommandLineParameters().contains("--audio-history-only");
+    bool notationOnly=JUCEApplication::getCommandLineParameters().contains("--notation-only");
+    bool spectralOnly=JUCEApplication::getCommandLineParameters().contains("--spectral-only");
+    bool transcriptionOnly=JUCEApplication::getCommandLineParameters().contains("--transcription-only");
+    bool referenceOnly=JUCEApplication::getCommandLineParameters().contains("--reference-only");
+    bool samplePreviewOnly=JUCEApplication::getCommandLineParameters().contains("--sample-preview-only");
+    bool restorationOnly=JUCEApplication::getCommandLineParameters().contains("--restoration-only");
+    bool mixAnalysisOnly=JUCEApplication::getCommandLineParameters().contains("--mix-analysis-only");
+    bool projectCommandsOnly=JUCEApplication::getCommandLineParameters().contains("--project-commands-only");
+    bool physicalOnly=JUCEApplication::getCommandLineParameters().contains("--physical-only");
+    bool editorTimingOnly=JUCEApplication::getCommandLineParameters().contains("--editor-timing-only");
+    bool microTuningOnly=JUCEApplication::getCommandLineParameters().contains("--microtuning-only");
+    bool dynamicsOnly=JUCEApplication::getCommandLineParameters().contains("--dynamics-only");
+    bool conditionsOnly=JUCEApplication::getCommandLineParameters().contains("--note-conditions-only");
+    bool masterInsertsOnly=JUCEApplication::getCommandLineParameters().contains("--master-inserts-only");
+    bool masterOnly=JUCEApplication::getCommandLineParameters().contains("--master-processing-only");
+    bool fingerprintsOnly=JUCEApplication::getCommandLineParameters().contains("--asset-fingerprints-only");
+    bool historyOnly=JUCEApplication::getCommandLineParameters().contains("--history-only");
+    bool automationToolsOnly=JUCEApplication::getCommandLineParameters().contains("--automation-tools-only");
+    bool grooveOnly=JUCEApplication::getCommandLineParameters().contains("--groove-only");
+    bool additiveOnly=JUCEApplication::getCommandLineParameters().contains("--additive-only");
+    bool progressionPresetsOnly=JUCEApplication::getCommandLineParameters().contains("--progression-presets-only");
+    bool curvesOnly=JUCEApplication::getCommandLineParameters().contains("--fade-curves-only");
+    bool retentionOnly=JUCEApplication::getCommandLineParameters().contains("--retention-only");
+    bool autosaveOnly=JUCEApplication::getCommandLineParameters().contains("--autosave-only");
+    bool persistenceOnly=JUCEApplication::getCommandLineParameters().contains("--persistence-only");
+    if(audioHistoryOnly||notationOnly||spectralOnly||transcriptionOnly||referenceOnly||samplePreviewOnly||restorationOnly||mixAnalysisOnly||projectCommandsOnly||physicalOnly||editorTimingOnly||microTuningOnly||dynamicsOnly||conditionsOnly||masterInsertsOnly||masterOnly||fingerprintsOnly||historyOnly||automationToolsOnly||grooveOnly||additiveOnly||progressionPresetsOnly||curvesOnly||retentionOnly||autosaveOnly||persistenceOnly||typingOnly||arrangementOnly||appearanceOnly||selectionOnly||sectionsOnly||resamplingOnly||browserKeyboardOnly||clipboardOnly||samplesOnly||archivesOnly||harmonyOnly||versionsOnly||shortcutsOnly||samplerOnly||playlistOnly){if(audioHistoryOnly)runAudioHistoryChecks(folder,check);else if(notationOnly)runNotationChecks(folder,check);else if(spectralOnly)runSpectralChecks(folder,check);else if(transcriptionOnly)runTranscriptionChecks(folder,check);else if(referenceOnly)runReferenceChecks(folder,check);else if(samplePreviewOnly)runSamplePreviewChecks(folder,check);else if(restorationOnly)runRestorationChecks(folder,check);else if(mixAnalysisOnly)runMixAnalysisChecks(folder,check);else if(projectCommandsOnly)runProjectCommandChecks(folder,check);else if(physicalOnly)runPhysicalChecks(folder,check);else if(editorTimingOnly)runEditorTimingChecks(folder,check);else if(microTuningOnly)runMicroTuningChecks(folder,check);else if(dynamicsOnly)runDynamicsChecks(folder,check);else if(conditionsOnly)runNoteConditionChecks(folder,check);else if(masterInsertsOnly)runMasterInsertChecks(folder,check);else if(masterOnly)runMasterProcessingChecks(folder,check);else if(fingerprintsOnly)runAssetFingerprintChecks(folder,check);else if(historyOnly)runEditHistoryChecks(folder,check);else if(automationToolsOnly)runAutomationToolChecks(folder,check);else if(grooveOnly)runGrooveChecks(folder,check);else if(additiveOnly)runAdditiveChecks(folder,check);else if(progressionPresetsOnly)runProgressionPresetChecks(folder,check);else if(curvesOnly)runAudioFadeCurveChecks(folder,check);else if(retentionOnly)runRecoveryRetentionChecks(folder,check);else if(autosaveOnly)runAutosaveChecks(folder,check);else if(persistenceOnly)runPersistenceChecks(folder,check);else if(playlistOnly){runPlaylistGroupChecks(folder,check);runPlaylistLoopChecks(folder,check);runAudioCrossfadeChecks(folder,check);}else if(samplerOnly)runSamplerTuningChecks(folder,check);else if(shortcutsOnly)runShortcutChecks(folder,check);else if(versionsOnly)runProjectVersionChecks(folder,check);else if(harmonyOnly){runHarmonyChecks(folder,check);runHarmonyPresetChecks(folder,check);runProgressionChecks(folder,check);runProgressionPresetChecks(folder,check);}else if(archivesOnly)runProjectArchiveChecks(folder,check);else if(samplesOnly)runSampleFavoritesChecks(folder,check);else if(clipboardOnly)runNoteClipboardChecks(folder,check);else if(browserKeyboardOnly)runBrowserKeyboardChecks(folder,check);else if(resamplingOnly)runWaveResampleChecks(folder,check);else if(typingOnly)runTypingChecks(folder,check);else if(sectionsOnly)runSectionClipChecks(folder,check);else if(selectionOnly)runPatternSelectionChecks(folder,check);else if(appearanceOnly)runAppearanceChecks(folder,check);else runSequenceChecks(folder,check);auto* report=new DynamicObject();report->setProperty("failures",failed);report->setProperty("checks",results);folder.getChildFile("editor-checks.json").replaceWithText(JSON::toString(var(report),false));dirty=false;return failed==0;}
     auto draw=[&]{Image img(Image::ARGB,getWidth(),getHeight(),true);Graphics g(img);paint(g);};
     auto event=[&](Point<float> p,int mods=ModifierKeys::leftButtonModifier){auto time=Time::getCurrentTime();return MouseEvent(Desktop::getInstance().getMainMouseSource(),p,ModifierKeys(mods),1,0,0,0,0,this,this,time,p,time,1,false);};
+    runAudioHistoryChecks(folder,check);runNotationChecks(folder,check);runSpectralChecks(folder,check);runTranscriptionChecks(folder,check);runReferenceChecks(folder,check);runSamplePreviewChecks(folder,check);runRestorationChecks(folder,check);runMixAnalysisChecks(folder,check);runProjectCommandChecks(folder,check);runPhysicalChecks(folder,check);runEditorTimingChecks(folder,check);runMicroTuningChecks(folder,check);runDynamicsChecks(folder,check);runNoteConditionChecks(folder,check);runMasterProcessingChecks(folder,check);runMasterInsertChecks(folder,check);
     resetLayout();draw();check(panes[playlistPane].visible&&panes[rackPane].visible&&panes[mixerPane].visible&&!panes[pianoPane].visible,"familiar multiwindow default layout");
     engine->prepare(48000);AudioBuffer<float> transportBlock(2,1024);
     auto playControl=std::find_if(hits.begin(),hits.end(),[](const Hit& h){return h.action==play;});
@@ -41,7 +68,7 @@ bool Studio::runEditorChecks(const File& folder,bool typingOnly,bool arrangement
     draw();auto control=event({pianoRect.getCentreX(),pianoRect.getCentreY()},ModifierKeys::leftButtonModifier|ModifierKeys::ctrlModifier);MouseWheelDetails wheel;wheel.deltaY=1;double oldSpan=pianoSpan;mouseWheelMove(control,wheel);check(pianoSpan<oldSpan,"Ctrl+wheel zooms piano roll");pianoSpan=8;
     auto lassoStart=event({pianoRect.getRight()-3,pianoRect.getBottom()-3},ModifierKeys::leftButtonModifier|ModifierKeys::ctrlModifier);mouseDown(lassoStart);auto lassoEnd=event({pianoRect.getX()+2,pianoRect.getY()+2},ModifierKeys::leftButtonModifier|ModifierKeys::ctrlModifier);mouseDrag(lassoEnd);check(selectedNotes.size()>1,"Ctrl-drag selects multiple notes");mouseUp(lassoEnd);selectedNotes.clear();selectedNote=-1;
     draw();check(snapshot(folder.getChildFile("piano.png")),"render piano roll");
-    selectedNote=0;selectedNotes={0};auto copied=lane()[0];size_t copyCount=lane().size();editCursorBeat=2;keyPressed(KeyPress('C',ModifierKeys(ModifierKeys::ctrlModifier),'c'));keyPressed(KeyPress('V',ModifierKeys(ModifierKeys::ctrlModifier),'v'));check(lane().size()==copyCount+1&&std::abs(lane().back().beat-2)<.001&&lane().back().pitch==copied.pitch,"Ctrl+C/V copies notes to cursor");perform(undoAction);selectedNotes={0};selectedNote=0;keyPressed(KeyPress('B',ModifierKeys(ModifierKeys::ctrlModifier),'b'));check(lane().size()==copyCount+1&&lane().back().beat>=copied.beat+copied.length,"Ctrl+B duplicates note to right");perform(undoAction);
+    selectedNote=0;selectedNotes={0};auto copied=lane()[0];size_t copyCount=lane().size();editCursorBeat=pianoNoteCursor=2;keyPressed(KeyPress('C',ModifierKeys(ModifierKeys::ctrlModifier),'c'));keyPressed(KeyPress('V',ModifierKeys(ModifierKeys::ctrlModifier),'v'));check(lane().size()==copyCount+1&&std::abs(lane().back().beat-copied.beat)<.001&&lane().back().pitch==copied.pitch,"Ctrl+C/V preserves original note beat positions");perform(undoAction);selectedNotes={0};selectedNote=0;keyPressed(KeyPress('B',ModifierKeys(ModifierKeys::ctrlModifier),'b'));check(lane().size()==copyCount+1&&lane().back().beat>=copied.beat+copied.length,"Ctrl+B duplicates note to right");perform(undoAction);
     showPane(rackPane);draw();auto blocked=event({panes[rackPane].bounds.getX()+355,panes[rackPane].bounds.getBottom()-18});before=lane().size();mouseDown(blocked);mouseUp(blocked);check(lane().size()==before&&activePane==rackPane,"top window prevents clicking through into piano roll");
     draw();auto title=std::find_if(hits.begin(),hits.end(),[](const Hit& h){return h.action==paneMove&&h.data==rackPane;});auto initial=panes[rackPane].bounds;
     if(title!=hits.end()){auto start=title->rect.getCentre();auto down=event(start);mouseDown(down);auto drag=event(start+Point<float>(24,15));mouseDrag(drag);mouseUp(drag);}check(panes[rackPane].bounds.getX()!=initial.getX()&&panes[rackPane].bounds.getY()!=initial.getY(),"window title drag repositions rack");
@@ -430,7 +457,7 @@ bool Studio::runEditorChecks(const File& folder,bool typingOnly,bool arrangement
     runEffectChainChecks(folder,check);
     runAnalyzerChecks(folder,check);
     runStereoChecks(folder,check);
-    runWavetableChecks(folder,check);
+    runWavetableChecks(folder,check);runAdditiveChecks(folder,check);
     runWorkspaceChecks(folder,check);
     runControlChecks(folder,check);
     runTypingChecks(folder,check);
@@ -438,6 +465,50 @@ bool Studio::runEditorChecks(const File& folder,bool typingOnly,bool arrangement
     runAppearanceChecks(folder,check);
     runPatternSelectionChecks(folder,check);
     runSectionClipChecks(folder,check);
+    runBrowserKeyboardChecks(folder,check);
+    runNoteClipboardChecks(folder,check);
+    runSampleFavoritesChecks(folder,check);
+    runProjectArchiveChecks(folder,check);
+    runPersistenceChecks(folder,check);
+    runAutosaveChecks(folder,check);
+    runRecoveryRetentionChecks(folder,check);
+    runAudioFadeCurveChecks(folder,check);
+    runHarmonyChecks(folder,check);
+    runHarmonyPresetChecks(folder,check);runProgressionChecks(folder,check);runProgressionPresetChecks(folder,check);runGrooveChecks(folder,check);runAutomationToolChecks(folder,check);
+    runAssetFingerprintChecks(folder,check);
+    runEditHistoryChecks(folder,check);
+    runProjectVersionChecks(folder,check);
+    runShortcutChecks(folder,check);
+    runSamplerTuningChecks(folder,check);
+    runPlaylistGroupChecks(folder,check);
+    runPlaylistLoopChecks(folder,check);runAudioCrossfadeChecks(folder,check);
     auto* report=new DynamicObject();report->setProperty("failures",failed);report->setProperty("checks",results);folder.getChildFile("editor-checks.json").replaceWithText(JSON::toString(var(report),false));dirty=false;return failed==0;
+}
+void Studio::runMasterProcessingChecks(const File& folder,const std::function<void(bool,const String&)>& check){
+    auto original=project;auto savedFile=currentFile;auto savedUndo=undoStack,savedRedo=redoStack;bool wasDirty=dirty;int savedTrack=selectedTrack;
+    perform(stop);cancelNoteTool(false);project=emptyProject();currentFile=File();selectedTrack=0;undoStack.clear();redoStack.clear();publish();resetLayout();
+    auto draw=[&]{Image image(Image::ARGB,getWidth(),getHeight(),true);Graphics g(image);paint(g);};
+    auto event=[&](Point<float> position,int mods=ModifierKeys::leftButtonModifier){auto now=Time::getCurrentTime();return MouseEvent(Desktop::getInstance().getMainMouseSource(),position,ModifierKeys(mods),1,0,0,0,0,this,this,now,position,now,1,false);};
+    draw();auto master=std::find_if(hits.begin(),hits.end(),[](const Hit& h){return h.action==masterEffectsOpen;});bool found=master!=hits.end();if(found){auto click=event(master->rect.getCentre());mouseDown(click);mouseUp(click);}
+    check(found&&masterEffectsView&&panes[effectsPane].visible,"clicking the Mixer Master strip opens its real output processing controls");draw();
+    bool fits=true;std::set<int> controls;for(const auto& h:hits)if(h.pane==effectsPane){fits&=workspaceBounds().contains(h.rect);if(h.action==masterSoftClipToggle||h.action==masterDry||h.action==masterDelayReturn||h.action==masterDelayFeedback||h.action==masterDial)controls.insert(h.action);}
+    check(fits&&controls.size()==5,"Master volume, saturation, dry bypass and both delay knobs fit the existing window");
+    auto toggle=std::find_if(hits.begin(),hits.end(),[](const Hit& h){return h.action==masterSoftClipToggle;});auto rev=revision;if(toggle!=hits.end()){auto click=event(toggle->rect.getCentre());mouseDown(click);mouseUp(click);}check(project.masterSoftClip&&revision==rev+1,"the real Master saturation button changes the saved project once");
+    perform(undoAction);check(!project.masterSoftClip,"Undo restores master saturation bypass");
+    project.masterSoftClip=true;project.delayReturn=.7f;project.delayFeedback=.6f;project.tracks[0].send=.45f;project.tracks[0].mixer.reverb=true;publish();undoStack.clear();redoStack.clear();rev=revision;perform(masterDry);
+    check(!project.masterSoftClip&&project.delayReturn==0&&project.delayFeedback==.6f&&project.tracks[0].send==.45f&&project.tracks[0].mixer.reverb&&revision==rev+1,"Dry master is one edit and preserves channel inserts and delay send/feedback settings");perform(undoAction);check(project.masterSoftClip&&project.delayReturn==.7f,"Undo restores both master processors together");
+    draw();auto knob=std::find_if(hits.begin(),hits.end(),[](const Hit& h){return h.action==masterDelayReturn;});if(knob!=hits.end()){MouseWheelDetails wheel;wheel.deltaY=-.12f;mouseWheelMove(event(knob->rect.getCentre()),wheel);}check(project.delayReturn<.7f&&project.delayReturn>.6f,"master delay return responds to the actual mouse wheel control");perform(undoAction);
+    checkpoint();setParameter(masterDelayFeedback,-1,.25f);check(std::abs(project.delayFeedback-.2f)<.000001f,"master feedback control maps to the bounded 0-80 percent range");perform(undoAction);
+    auto file=folder.getChildFile("master-processing.pulse");Project loaded;check(saveProject(project,file).wasOk()&&loadProject(file,loaded).wasOk()&&loaded.masterSoftClip&&loaded.delayReturn==.7f&&loaded.delayFeedback==.6f,"master processing settings survive an actual project save and reopen");
+    perform(analyzerMaster);check(analyzerView,"Master processing opens the Master analyzer");perform(analyzerBack);check(masterEffectsView&&!analyzerView,"returning from analyzer restores the Master controls");perform(stereoOpen);check(!masterEffectsView&&selectedEffect==6,"opening channel stereo tools leaves the Master view");perform(masterEffectsOpen);perform(effectsOpen,2);check(!masterEffectsView&&selectedEffect==2,"opening channel Reverb restores the selected channel controls");
+    auto entries=paletteEntries();check(!searchCommands(entries,"master processing").empty(),"command search finds Master processing");
+    // Reproduce preview overlap through the real assignment path rather than only the DSP API.
+    auto sampleFile=folder.getChildFile("master-preview.wav");AudioBuffer<float> audio(2,48000);for(int c=0;c<2;++c)for(int i=0;i<48000;++i)audio.setSample(c,i,(float)(.2*std::sin(i*.1)));
+    auto stream=sampleFile.createOutputStream();WavAudioFormat format;std::unique_ptr<AudioFormatWriter> writer(stream?format.createWriterFor(stream.get(),48000,2,24,{},0):nullptr);bool written=writer&&writer->writeFromAudioSampleBuffer(audio,0,48000);if(writer)stream.release();writer.reset();String error;auto* sample=written?assets.load(sampleFile,error):nullptr;
+    engine->prepare(48000);AudioBuffer<float> out(2,512);if(sample)engine->preview(sample);getNextAudioBlock(AudioSourceChannelInfo(&out,0,512));check(sample&&engine->previewPlaying.load(),"assignment regression starts an independent audible sample preview");
+    if(sample)loadSample(sampleFile,0);getNextAudioBlock(AudioSourceChannelInfo(&out,0,512));check(!engine->previewPlaying.load(),"loading the previewed sample into a channel cancels the independent preview");
+    if(sample)engine->preview(sample);getNextAudioBlock(AudioSourceChannelInfo(&out,0,512));BrowserAsset asset;asset.file=sampleFile;bool assigned=sample&&applyBrowserAsset(asset,0);getNextAudioBlock(AudioSourceChannelInfo(&out,0,512));check(assigned&&!engine->previewPlaying.load(),"Browser sample assignment also cancels preview doubling");
+    perform(masterEffectsOpen);draw();auto image=createComponentSnapshot(getLocalBounds());FileOutputStream picture(folder.getChildFile("master-processing.png"));PNGImageFormat png;if(picture.openedOk())png.writeImageToStream(image,picture);
+    perform(stop);masterEffectsView=masterInsertView=false;project=std::move(original);currentFile=savedFile;selectedTrack=savedTrack;undoStack=std::move(savedUndo);redoStack=std::move(savedRedo);dirty=wasDirty;resetLayout();publish();
 }
 }

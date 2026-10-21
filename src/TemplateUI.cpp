@@ -36,7 +36,7 @@ bool Studio::startFromTemplate(const ProjectTemplate& info){
     Project next;auto result=loadProjectTemplate(info,next);if(result.failed()){status=result.getErrorMessage();return false;}
     releaseKeys();auto history=root.getChildFile("data/History");result=history.createDirectory();if(result.failed()){status="Could not back up the current session: "+result.getErrorMessage();return false;}
     auto backup=history.getNonexistentChildFile("Before_template_"+Time::getCurrentTime().formatted("%Y%m%d_%H%M%S")+"_"+Uuid().toString().substring(0,8),".pulse");result=saveProject(absoluteAssets(project,currentFile==File()?root:currentFile.getParentDirectory()),backup);if(result.failed()){status="Current session was kept: "+result.getErrorMessage();return false;}
-    checkpoint();engine->preview(nullptr);engine->stop();recording=false;project=std::move(next);project.title=("Untitled - "+info.name).substring(0,200);currentFile=File();lastTemplateBackup=backup;
+    synchronizeAutosave();checkpoint();engine->preview(nullptr);engine->stop();recording=false;project=std::move(next);project.title=("Untitled - "+info.name).substring(0,200);currentFile=File();lastTemplateBackup=backup;
     selectedTrack=0;trackScroll=0;selectedNote=-1;selectedNotes.clear();selectedClip=-1;selectedPoint=-1;clipboardHasClip=false;pianoLow=-1;pianoStart=0;pianoSpan=jmin(8.,project.patterns[(size_t)project.activePattern].length);playlistStart=0;playlistSpan=40;editCursorBeat=0;
     changed();assetRevealMissing=true;panes[templatesPane].visible=false;showPane(project.songMode?playlistPane:rackPane);status="Started from "+info.name+". Previous session backed up in History; Ctrl+Z restores it.";return true;
 }

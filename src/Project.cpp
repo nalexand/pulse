@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 #include "Project.h"
+#include "EffectPresets.h"
+#include "SamplerTuning.h"
 #include <juce_cryptography/juce_cryptography.h>
 #include <cmath>
 #include <set>
@@ -7,18 +9,23 @@
 namespace pulse {
 using namespace juce;
 String instrumentName(Instrument i) {
-    static const char* names[] = {"Analog kick", "Noise snare", "Closed hat", "Clap", "Open hat", "Mono bass", "Warm pad", "Pluck lead", "Sampler", "Pulse Analog", "Pulse FM", "Pulse Wavetable"};
+    static const char* names[] = {"Analog kick", "Noise snare", "Closed hat", "Clap", "Open hat", "Mono bass", "Warm pad", "Pluck lead", "Sampler", "Pulse Analog", "Pulse FM", "Pulse Wavetable", "Pulse Additive", "Pulse Resonator"};
     return names[jlimit(0, instrumentCount-1, (int)i)];
 }
 String effectName(int i,bool compact){static const char* names[]={"Equalizer","Compressor","Stereo reverb","Stereo chorus","Stereo flanger","Stereo phaser"};static const char* shortNames[]={"EQ","Comp","Reverb","Chorus","Flanger","Phaser"};return i>=0&&i<builtinEffectCount?String(compact?shortNames[i]:names[i]):String("Unknown effect");}
 Result validateEffectOrder(const EffectOrder& order){std::array<bool,builtinEffectCount> seen{};for(int i:order){if(i<0||i>=builtinEffectCount||seen[(size_t)i])return Result::fail("Effect chain must contain each of the six built-in effects exactly once.");seen[(size_t)i]=true;}return Result::ok();}
 var effectOrderToJson(const EffectOrder& order){Array<var> array;for(int i:order)array.add(i);return var(array);}
 Result effectOrderFromJson(const var& value,EffectOrder& out){auto* array=value.getArray();if(!array||array->size()!=builtinEffectCount)return Result::fail("Invalid effect chain order.");EffectOrder order;for(int i=0;i<builtinEffectCount;++i){const auto& v=(*array)[i];double n=(double)v;if(!(v.isInt()||v.isInt64()||v.isDouble())||!std::isfinite(n)||n<0||n>=builtinEffectCount||n!=std::floor(n))return Result::fail("Invalid effect identity in chain.");order[(size_t)i]=(int)n;}auto valid=validateEffectOrder(order);if(valid.wasOk())out=order;return valid;}
-bool isSynth(Instrument i){return i==Instrument::analog||i==Instrument::fm||i==Instrument::wavetable;}
+bool isSynth(Instrument i){return i==Instrument::analog||i==Instrument::fm||i==Instrument::wavetable||i==Instrument::additive||i==Instrument::physical;}
 bool isDrum(Instrument i) { return (int)i <= 4; }
 String patternColourName(int index){static const char* names[]={"Automatic","Green","Sage","Teal","Sky","Blue","Violet","Lavender","Rose","Coral","Orange","Sand","Grey"};return index>=0&&index<patternColourCount?names[index]:"Unknown";}
 uint32_t patternColourARGB(int index){static constexpr uint32_t colours[]={0,0xffb2c98d,0xffa3bd9b,0xff83c0b7,0xff8abed4,0xff8ea9d2,0xffa69ad0,0xffc2a8cc,0xffd2a0b6,0xffd69e93,0xffd5b084,0xffc9bf9b,0xffadb9bf};return index>=0&&index<patternColourCount?colours[index]:0;}
+uint32_t automaticPatternColourARGB(int index){
+    static constexpr uint32_t colours[]={0xffb2c98d,0xffe082d2,0xff6accbe,0xffe0bd90,0xff8e76cc,0xff77e075,0xffcc8399,0xff82bbe0,0xffc2cc6a,0xffd190e0,0xff76cca3,0xffe08d75,0xff8387cc,0xffa3e082,0xffcc6aa9,0xff90dbe0,0xffccb876,0xffa875e0,0xff83cc90,0xffe0828c,0xff6a91cc,0xffc7e090,0xffcc76ca,0xff75e0c3,0xffcca383,0xff9082e0,0xff78cc6a,0xffe090b3,0xff76b5cc,0xffe0de75,0xffb583cc,0xff82e0a7};
+    return colours[jmax(0,index)%32];
+}
 void ensurePatternEditorIds(Project& p){std::set<String> seen;for(auto& pattern:p.patterns){while(pattern.editorId.isEmpty()||!seen.insert(pattern.editorId).second)pattern.editorId=Uuid().toString();}}
+void ensurePlaylistEditorIds(Project& p){std::set<String> tracks,clips;for(auto& track:p.tracks)while(track.editorId.isEmpty()||!tracks.insert(track.editorId).second)track.editorId=Uuid().toString();for(auto& clip:p.clips)while(clip.editorId.isEmpty()||!clips.insert(clip.editorId).second)clip.editorId=Uuid().toString();}
 int patternIndexForEditorId(const Project& p,const String& id){if(id.isEmpty())return -1;for(int i=0;i<(int)p.patterns.size();++i)if(p.patterns[(size_t)i].editorId==id)return i;return -1;}
 double Project::songLength() const {
     double end = 8;
@@ -43,7 +50,8 @@ Project emptyProject() {
     Project p;
     const char* names[] = {"Kick", "Snare", "Closed hat", "Clap", "Open hat", "Bass", "Chords", "Lead"};
     for (int i = 0; i < 8; ++i) {
-        Track t; t.name = names[i]; t.instrument = (Instrument)i;
+        Track t;
+        t.name = names[i]; t.instrument = (Instrument)i;
         t.volume = i == 2 ? 0.32f : i >= 6 ? 0.28f : 0.65f;
         t.cutoff = i == 5 ? 1400.f : 16000.f;
         t.send = i == 6 ? 0.35f : i == 7 ? 0.18f : 0.f;
@@ -107,14 +115,14 @@ static void put(var& o, const char* name, const var& value) { o.getDynamicObject
 var projectToJson(const Project& p) {
     var root = object(); put(root,"schema",projectSchema);var rec=object();put(rec,"countInBars",p.recording.countInBars);put(rec,"preRollBars",p.recording.preRollBars);put(rec,"punch",p.recording.punch);put(rec,"punchStart",p.recording.punchStart);put(rec,"punchEnd",p.recording.punchEnd);put(root,"recording",rec); put(root,"application","Pulse Studio"); put(root,"title",p.title);
     Array<var> markers;for(const auto& m:p.markers){auto row=object();put(row,"id",m.id);put(row,"name",m.name);put(row,"beat",m.beat);put(row,"endBeat",m.endBeat);put(row,"colour",m.colour);markers.add(row);}put(root,"markers",markers);put(root,"loopSection",p.loopSection);
-    put(root,"bpm",p.bpm); put(root,"swing",p.swing); put(root,"master",p.master); put(root,"delayFeedback",p.delayFeedback);
+    put(root,"bpm",p.bpm); put(root,"swing",p.swing); put(root,"master",p.master); put(root,"delayFeedback",p.delayFeedback); put(root,"delayReturn",p.delayReturn); put(root,"masterSoftClip",p.masterSoftClip); put(root,"masterEffects",masterEffectsToJson(p.masterMixer));
     put(root,"songMode",p.songMode); put(root,"loop",p.loop); put(root,"metronome",p.metronome); put(root,"activePattern",p.activePattern); put(root,"notes",p.notes);
     Array<var> tracks;
     for (const auto& t : p.tracks) {
         var v = object(); put(v,"name",t.name); put(v,"instrument",(int)t.instrument); put(v,"volume",t.volume); put(v,"pan",t.pan);
         put(v,"cutoff",t.cutoff); put(v,"drive",t.drive); put(v,"send",t.send); put(v,"attack",t.attack); put(v,"release",t.release);
-        put(v,"mute",t.mute); put(v,"solo",t.solo); put(v,"samplePath",t.samplePath);put(v,"sampleStart",t.sampleStart);put(v,"sampleEnd",t.sampleEnd);put(v,"sampleLoop",t.sampleLoop);put(v,"isBus",t.isBus);var m=object();const auto& fx=t.mixer;
-        put(m,"stereo",stereoToJson(fx.stereo));put(m,"order",effectOrderToJson(fx.order));put(m,"flanger",modulationToJson(fx.flanger));put(m,"phaser",modulationToJson(fx.phaser));put(m,"chorus",chorusToJson(fx.chorus));put(m,"output",fx.output);put(m,"sidechain",fx.sidechain);put(m,"eq",fx.eq);put(m,"compressor",fx.compressor);put(m,"reverb",fx.reverb);
+        put(v,"mute",t.mute); put(v,"solo",t.solo); put(v,"samplePath",t.samplePath);put(v,"sampleStart",t.sampleStart);put(v,"sampleEnd",t.sampleEnd);put(v,"sampleLoop",t.sampleLoop);put(v,"sampleRoot",t.sampleRoot);put(v,"sampleTune",t.sampleTune);put(v,"tuning",microTuningToJson(t.tuning));put(v,"isBus",t.isBus);var m=object();const auto& fx=t.mixer;
+        put(m,"dynamics",dynamicsToJson(fx.dynamics));put(m,"stereo",stereoToJson(fx.stereo));put(m,"order",effectOrderToJson(fx.order));put(m,"flanger",modulationToJson(fx.flanger));put(m,"phaser",modulationToJson(fx.phaser));put(m,"chorus",chorusToJson(fx.chorus));put(m,"output",fx.output);put(m,"sidechain",fx.sidechain);put(m,"eq",fx.eq);put(m,"compressor",fx.compressor);put(m,"reverb",fx.reverb);
         put(m,"low",fx.low);put(m,"mid",fx.mid);put(m,"high",fx.high);put(m,"threshold",fx.threshold);put(m,"ratio",fx.ratio);put(m,"attack",fx.compAttack);put(m,"release",fx.compRelease);put(m,"makeup",fx.makeup);put(m,"mix",fx.reverbMix);put(m,"room",fx.room);put(m,"damping",fx.damping);put(v,"mixer",m);put(v,"synth",synthPatchToJson(t.synth));put(v,"soundName",t.soundName);tracks.add(v);
     } put(root,"tracks",tracks);
     Array<var> patterns;
@@ -124,12 +132,12 @@ var projectToJson(const Project& p) {
             Array<var> notes;
             for (const auto& n : lane) {
                 var x = object(); put(x,"beat",n.beat); put(x,"length",n.length); put(x,"pitch",n.pitch);
-                put(x,"velocity",n.velocity); put(x,"probability",n.probability); put(x,"ratchets",n.ratchets); notes.add(x);
+                put(x,"velocity",n.velocity); put(x,"probability",n.probability); put(x,"ratchets",n.ratchets); put(x,"conditionEvery",n.conditionEvery); put(x,"conditionStep",n.conditionStep); notes.add(x);
             } lanes.add(var(notes));
         } put(v,"lanes",lanes); patterns.add(v);
     } put(root,"patterns",patterns);
     Array<var> clips;
-    for (const auto& c : p.clips) { var v = object(); put(v,"track",c.track); put(v,"pattern",c.pattern); put(v,"beat",c.beat); put(v,"length",c.length); put(v,"audioPath",c.audioPath); put(v,"sourceOffset",c.sourceOffset); put(v,"gain",c.gain); put(v,"fadeIn",c.fadeIn); put(v,"fadeOut",c.fadeOut); put(v,"automationTarget",c.automationTarget); put(v,"automationTrack",c.automationTrack); Array<var> points; for(const auto& point:c.points){var x=object();put(x,"beat",point.beat);put(x,"value",point.value);put(x,"hold",point.hold);points.add(x);} put(v,"points",points); clips.add(v); }
+    for (const auto& c : p.clips) { var v = object(); put(v,"track",c.track); put(v,"pattern",c.pattern); put(v,"beat",c.beat); put(v,"length",c.length); put(v,"audioPath",c.audioPath); put(v,"sourceOffset",c.sourceOffset); put(v,"gain",c.gain); put(v,"fadeIn",c.fadeIn); put(v,"fadeOut",c.fadeOut); put(v,"fadeInCurve",(int)c.fadeInCurve); put(v,"fadeOutCurve",(int)c.fadeOutCurve); put(v,"automationTarget",c.automationTarget); put(v,"automationTrack",c.automationTrack); Array<var> points; for(const auto& point:c.points){var x=object();put(x,"beat",point.beat);put(x,"value",point.value);put(x,"hold",point.hold);put(x,"curve",(int)point.curve);put(x,"tension",point.tension);points.add(x);} put(v,"points",points); clips.add(v); }
     put(root,"clips",clips); return root;
 }
 static double value(const var& v, const char* key, double fallback) {
@@ -146,6 +154,11 @@ Result projectFromJson(const var& root, Project& out) {
     Project p; p.title = root["title"].toString().substring(0,200);
     p.bpm = jlimit(30.,300.,value(root,"bpm",118)); p.swing = (float)jlimit(0.,.6,value(root,"swing",0));
     p.master = (float)jlimit(0.,1.,value(root,"master",.8)); p.delayFeedback = (float)jlimit(0.,.8,value(root,"delayFeedback",.3));
+    // Before schema 19 the master always used tanh saturation and a fixed 50% delay return.
+    // Preserve that exact signal path when an older song is opened.
+    if((int)root["schema"]<19){p.masterSoftClip=true;p.delayReturn=.5f;}
+    else{const auto& wet=root["delayReturn"];if(!(wet.isInt()||wet.isInt64()||wet.isDouble())||!std::isfinite((double)wet)||(double)wet<0||(double)wet>1||!root["masterSoftClip"].isBool())return Result::fail("Invalid master processing settings.");p.delayReturn=(float)(double)wet;p.masterSoftClip=(bool)root["masterSoftClip"];}
+    if((int)root["schema"]>=20){auto valid=masterEffectsFromJson(root["masterEffects"],p.masterMixer);if(valid.failed())return valid;if((int)root["schema"]<22&&p.masterMixer.dynamics!=DynamicsOptions{})return Result::fail("Extended Master dynamics require schema 22.");if((int)root["schema"]>=22&&(int)root["masterEffects"]["chain"]["schema"]<2)return Result::fail("Missing complete Master dynamics state.");}
     p.songMode = (bool)root["songMode"]; p.loop = root.hasProperty("loop") ? (bool)root["loop"] : true;
     p.metronome = (bool)root["metronome"]; p.notes = root["notes"].toString();
     if(root.hasProperty("recording")){auto r=root["recording"];if(!r.isObject())return Result::fail("Invalid recording settings.");p.recording.countInBars=jlimit(0,2,(int)value(r,"countInBars",0));p.recording.preRollBars=jlimit(0,2,(int)value(r,"preRollBars",1));p.recording.punch=(bool)r["punch"];p.recording.punchStart=value(r,"punchStart",0);p.recording.punchEnd=value(r,"punchEnd",8);if(p.recording.punchStart<0||p.recording.punchEnd>4096||p.recording.punchEnd-p.recording.punchStart<.25)return Result::fail("Punch range must span at least 1/4 beat inside 0-4096 beats.");}
@@ -154,14 +167,22 @@ Result projectFromJson(const var& root, Project& out) {
     auto markersValid=validateSongMarkers(p);if(markersValid.failed())return markersValid;std::sort(p.markers.begin(),p.markers.end(),[](const SongMarker& a,const SongMarker& b){return a.beat==b.beat?a.id<b.id:a.beat<b.beat;});
     for (const auto& v : *tracks) {
         if (!v.isObject()) return Result::fail("Invalid track object.");
+        if((int)root["schema"]>=17&&(!(v["instrument"].isInt()||v["instrument"].isInt64())||(int64)v["instrument"]<0||(int64)v["instrument"]>=instrumentCount))return Result::fail("Invalid instrument identity.");
+        if((int)root["schema"]<17&&(int)v["instrument"]==(int)Instrument::additive)return Result::fail("Additive instruments require project schema 17.");
         if((int)root["schema"]<13&&(int)v["instrument"]==(int)Instrument::wavetable)return Result::fail("Wavetable instruments require project schema 13.");
-        Track t; t.name = v["name"].toString().substring(0,100); t.instrument = (Instrument)jlimit(0,(int)root["schema"]<8?8:(int)root["schema"]<13?10:instrumentCount-1,(int)v["instrument"]);
+        if((int)root["schema"]<24&&(int)v["instrument"]==(int)Instrument::physical)return Result::fail("Physical instruments require project schema 24.");
+        Track t;
+        if(v.hasProperty("tuning")){auto valid=microTuningFromJson(v["tuning"],t.tuning);if(valid.failed())return valid;if((int)root["schema"]<23&&t.tuning!=MicroTuning{})return Result::fail("Microtonal tuning requires project schema 23.");}
+        else if((int)root["schema"]>=23)return Result::fail("Channel is missing its complete tuning table.");
+        t.name = v["name"].toString().substring(0,100); t.instrument = (Instrument)jlimit(0,(int)root["schema"]<8?8:(int)root["schema"]<13?10:(int)root["schema"]<17?11:instrumentCount-1,(int)v["instrument"]);
         t.volume = (float)jlimit(0.,1.5,value(v,"volume",.7)); t.pan = (float)jlimit(-1.,1.,value(v,"pan",0));
         t.cutoff = (float)jlimit(60.,20000.,value(v,"cutoff",16000)); t.drive = (float)jlimit(0.,1.,value(v,"drive",0));
         t.send = (float)jlimit(0.,.8,value(v,"send",0)); t.attack = (float)jlimit(.001,2.,value(v,"attack",.005));
         t.release = (float)jlimit(.02,3.,value(v,"release",.18)); t.mute = (bool)v["mute"]; t.solo = (bool)v["solo"];
-        t.samplePath = v["samplePath"].toString();t.sampleStart=jlimit(0.,120.,value(v,"sampleStart",0));t.sampleEnd=jlimit(0.,120.,value(v,"sampleEnd",0));t.sampleLoop=(bool)v["sampleLoop"];if(t.sampleEnd>0&&t.sampleEnd<=t.sampleStart)return Result::fail("Invalid sampler selection.");t.isBus=(bool)v["isBus"];
+        t.samplePath = v["samplePath"].toString();t.sampleStart=jlimit(0.,(int)root["schema"]>=25?maxAudioSeconds:120.,value(v,"sampleStart",0));t.sampleEnd=jlimit(0.,(int)root["schema"]>=25?maxAudioSeconds:120.,value(v,"sampleEnd",0));t.sampleLoop=(bool)v["sampleLoop"];if(t.sampleEnd>0&&t.sampleEnd<=t.sampleStart)return Result::fail("Invalid sampler selection.");t.isBus=(bool)v["isBus"];
+        if((int)root["schema"]>=15){auto note=v["sampleRoot"],tune=v["sampleTune"];auto numeric=[](const var& x){return x.isInt()||x.isInt64()||x.isDouble();};if(!numeric(note)||!numeric(tune)||!std::isfinite((double)note)||(double)note!=std::floor((double)note)||(double)note<0||(double)note>127)return Result::fail("Invalid sampler root or fine tune.");t.sampleRoot=(int)note;t.sampleTune=(double)tune;auto valid=validateSamplerTuning(t.sampleRoot,t.sampleTune);if(valid.failed())return valid;}
         if(v.hasProperty("mixer")){auto m=v["mixer"];if(!m.isObject())return Result::fail("Invalid mixer settings.");auto& fx=t.mixer;
+            if(m.hasProperty("dynamics")){auto result=dynamicsFromJson(m["dynamics"],fx.dynamics);if(result.failed())return result;if((int)root["schema"]<22&&fx.dynamics!=DynamicsOptions{})return Result::fail("Extended dynamics require schema 22.");}else if((int)root["schema"]>=22)return Result::fail("Missing dynamics options.");
             if(m.hasProperty("stereo")){auto result=stereoFromJson(m["stereo"],fx.stereo);if(result.failed())return result;}else if((int)root["schema"]>=12)return Result::fail("Mixer is missing its stereo settings.");
             if(m.hasProperty("order")){auto result=effectOrderFromJson(m["order"],fx.order);if(result.failed())return result;}else if((int)root["schema"]>=11)return Result::fail("Mixer is missing its effect chain order.");
             if(m.hasProperty("chorus")){auto result=chorusFromJson(m["chorus"],fx.chorus);if(result.failed())return result;}else if((int)root["schema"]>=9)return Result::fail("Mixer is missing its chorus settings.");
@@ -171,7 +192,7 @@ Result projectFromJson(const var& root, Project& out) {
             fx.threshold=(float)jlimit(-60.,0.,value(m,"threshold",-18));fx.ratio=(float)jlimit(1.,20.,value(m,"ratio",4));fx.compAttack=(float)jlimit(.1,100.,value(m,"attack",10));fx.compRelease=(float)jlimit(5.,1000.,value(m,"release",120));fx.makeup=(float)jlimit(-12.,24.,value(m,"makeup",0));
             fx.reverbMix=(float)jlimit(0.,1.,value(m,"mix",.15));fx.room=(float)jlimit(0.,1.,value(m,"room",.5));fx.damping=(float)jlimit(0.,1.,value(m,"damping",.5));}
         else if((int)root["schema"]>=10)return Result::fail("Track is missing mixer settings.");
-        if(v.hasProperty("synth")){auto result=synthPatchFromJson(v["synth"],t.synth,(int)root["schema"]>=13);if(result.failed())return result;}
+        if(v.hasProperty("synth")){auto result=synthPatchFromJson(v["synth"],t.synth,(int)root["schema"]>=13,(int)root["schema"]>=17,(int)root["schema"]>=24);if(result.failed())return result;if((int)root["schema"]<24&&t.synth.physical!=PhysicalSettings{})return Result::fail("Physical settings require project schema 24.");if((int)root["schema"]<17&&t.synth.harmonics!=defaultHarmonics)return Result::fail("Custom harmonics require project schema 17.");}
         else if((int)root["schema"]>=8&&isSynth(t.instrument))return Result::fail("Synth channel is missing its patch state.");
         t.soundName=v["soundName"].toString().substring(0,80);p.tracks.push_back(t);
     }
@@ -187,7 +208,10 @@ Result projectFromJson(const var& root, Project& out) {
                 if (!x.isObject()) return Result::fail("Invalid note object.");
                 Note n; n.beat = jlimit(0.,pat.length-.000001,value(x,"beat",0)); n.length = jlimit(.01,64.,value(x,"length",.25));
                 n.pitch = jlimit(0,127,(int)x["pitch"]); n.velocity = (float)jlimit(0.,1.,value(x,"velocity",.8));
-                n.probability = (float)jlimit(0.,1.,value(x,"probability",1)); n.ratchets = jlimit(1,8,(int)value(x,"ratchets",1)); ns.push_back(n);
+                n.probability = (float)jlimit(0.,1.,value(x,"probability",1)); n.ratchets = jlimit(1,8,(int)value(x,"ratchets",1));
+                for(auto field:{"conditionEvery","conditionStep"}){if(!x.hasProperty(field)){if((int)root["schema"]>=21)return Result::fail("Note is missing its repeat condition.");continue;}const auto& c=x[field];if(!(c.isInt()||c.isInt64()||c.isDouble())||!std::isfinite((double)c)||(double)c!=std::floor((double)c)||(double)c<1||(double)c>16)return Result::fail("Invalid note repeat condition.");if(String(field)=="conditionEvery")n.conditionEvery=(int)c;else n.conditionStep=(int)c;}
+                if(!validNoteCondition(n))return Result::fail("Note condition pass exceeds its cycle length.");
+                if((int)root["schema"]<21&&(n.conditionEvery!=1||n.conditionStep!=1))return Result::fail("Conditional notes require project schema 21.");ns.push_back(n);
             } pat.lanes.push_back(std::move(ns));
         } p.patterns.push_back(std::move(pat));
     }
@@ -199,37 +223,34 @@ Result projectFromJson(const var& root, Project& out) {
             if(!v.isObject())return Result::fail("Invalid arrangement clip object.");
             Clip c; c.track = (int)v["track"]; c.pattern = (int)v["pattern"]; c.beat = value(v,"beat",0); c.length = value(v,"length",8);
             c.audioPath=v["audioPath"].toString(); c.sourceOffset=value(v,"sourceOffset",0); c.gain=(float)jlimit(0.,2.,value(v,"gain",1)); c.fadeIn=jlimit(0.,c.length,value(v,"fadeIn",0)); c.fadeOut=jlimit(0.,c.length,value(v,"fadeOut",0));
+            for(auto field:{"fadeInCurve","fadeOutCurve"}){auto x=v[field];if(!v.hasProperty(field)){if((int)root["schema"]>=16)return Result::fail("Audio fade curve fields are missing.");continue;}if(!(x.isInt()||x.isInt64())||(int64)x<0||(int64)x>2)return Result::fail("Invalid audio fade curve (0 Linear, 1 Equal power, 2 S-curve).");if((int)root["schema"]<16&&(int)x!=0)return Result::fail("Nonlinear audio fades require project schema 16.");if(String(field)=="fadeInCurve")c.fadeInCurve=(FadeCurve)(int)x;else c.fadeOutCurve=(FadeCurve)(int)x;}
+            if(!c.isAudio()&&(c.fadeInCurve!=FadeCurve::linear||c.fadeOutCurve!=FadeCurve::linear))return Result::fail("Nonlinear fades require an audio clip.");
             c.automationTarget=(int)value(v,"automationTarget",-1);c.automationTrack=(int)value(v,"automationTrack",-1);
-            if(c.automationTarget<-1||c.automationTarget>5||c.length<=0||c.length>600)return Result::fail("Invalid automation target or clip length.");
+            if(c.automationTarget<-1||c.automationTarget>5||c.length<=0||c.length>((int)root["schema"]>=25?maxClipLength(c):600.))return Result::fail("Invalid automation target or clip length.");
             if(c.isAutomation()){
                 auto* points=v["points"].getArray();
                 if((c.automationTarget!=5&&(c.automationTrack<0||c.automationTrack>=tracks->size()))||c.isAudio()||!points||points->size()<2||points->size()>maxAutomationPoints||++automationCount>maxAutomationClips||(totalPoints+=points->size())>maxTotalAutomationPoints)return Result::fail("Invalid or oversized automation clip.");
                 double previous=-1;
                 for(const auto& x:*points){double beat=value(x,"beat",-1),val=value(x,"value",-1);
                     if(!x.isObject()||beat<0||beat>600||beat<=previous||val<0||val>1)return Result::fail("Automation points must have increasing beats and values from 0 to 1.");
-                    c.points.push_back({beat,(float)val,(bool)x["hold"]});previous=beat;}
+                    AutomationPoint point{beat,(float)val,(bool)x["hold"]};
+                    bool modern=(int)root["schema"]>=18;
+                    if(modern||x.hasProperty("curve")||x.hasProperty("tension")){
+                        auto curve=x["curve"],tension=x["tension"];
+                        if(!(curve.isInt()||curve.isInt64())||(int64)curve<0||(int64)curve>3||!(tension.isInt()||tension.isInt64()||tension.isDouble())||!std::isfinite((double)tension)||(double)tension< -1||(double)tension>1||!x["hold"].isBool())return Result::fail("Invalid automation curve or tension.");
+                        point.curve=(AutomationCurve)(int)curve;point.tension=(float)(double)tension;
+                        if(!modern&&(point.curve!=AutomationCurve::linear||point.tension!=0))return Result::fail("Shaped automation requires project schema 18.");
+                    }
+                    c.points.push_back(point);previous=beat;}
             }
-            if(c.sourceOffset<0||c.sourceOffset>120)return Result::fail("Invalid audio source offset.");
-            if (c.track < 0 || c.track >= tracks->size() || (!c.isAudio() && !c.isAutomation() && (c.pattern < 0 || c.pattern >= pats->size())) || c.beat < 0 || c.beat > 4096 || c.length <= 0 || c.length > 600)
+            if(c.sourceOffset<0||c.sourceOffset>((int)root["schema"]>=25?maxAudioSeconds:120.))return Result::fail("Invalid audio source offset.");
+            if (c.track < 0 || c.track >= tracks->size() || (!c.isAudio() && !c.isAutomation() && (c.pattern < 0 || c.pattern >= pats->size())) || c.beat < 0 || c.beat > 4096 || c.length <= 0 || c.length > ((int)root["schema"]>=25?maxClipLength(c):600.))
                 return Result::fail("Invalid arrangement clip.");
             p.clips.push_back(c);
         }
     }
     auto routing=validateRouting(p);if(routing.failed())return routing;
     out = std::move(p); return Result::ok();
-}
-Result saveProject(const Project& p, const File& file) {
-    for(const auto& t:p.tracks){auto valid=validateStereo(t.mixer.stereo);if(valid.failed())return valid;valid=validateEffectOrder(t.mixer.order);if(valid.failed())return valid;valid=validateSynthPatch(t.synth);if(valid.failed())return valid;valid=validateChorus(t.mixer.chorus);if(valid.failed())return valid;valid=validateModulation(t.mixer.flanger,ModulationKind::flanger);if(valid.failed())return valid;valid=validateModulation(t.mixer.phaser,ModulationKind::phaser);if(valid.failed())return valid;}
-    auto dir = file.getParentDirectory().createDirectory(); if (dir.failed()) return dir;
-    TemporaryFile temp(file);
-    if (!temp.getFile().replaceWithText(JSON::toString(projectToJson(p),false))) return Result::fail("Cannot write project file.");
-    if (!temp.overwriteTargetFileWithTemporary()) return Result::fail("Cannot commit project save.");
-    return Result::ok();
-}
-Result loadProject(const File& file, Project& p) {
-    if(file.hasFileExtension("flp"))return Result::fail("FL Studio .flp import is not implemented. This build opens .pulse projects and imports MIDI or audio samples.");
-    if (!file.existsAsFile() || file.getSize() > 32 * 1024 * 1024) return Result::fail("Missing or oversized project file.");
-    var root; auto r = JSON::parse(file.loadFileAsString(),root); return r.failed() ? r : projectFromJson(root,p);
 }
 Project absoluteAssets(const Project& p,const File& base) {
     auto copy=p;
@@ -255,6 +276,7 @@ Result collectAssets(const Project& p,const File& base,const File& target,Projec
     collected=std::move(copy);return Result::ok();
 }
 Result writeMidi(const Project& p, const File& file) {
+    for(const auto& pat:p.patterns)for(const auto& lane:pat.lanes)for(const auto& n:lane)if(!validNoteCondition(n))return Result::fail("Invalid note repeat condition.");
     MidiFile midi; midi.setTicksPerQuarterNote(960);
     MidiMessageSequence meta;
     auto tempo = MidiMessage::tempoMetaEvent((int)(60000000.0/p.bpm)); tempo.setTimeStamp(0); meta.addEvent(tempo);
@@ -266,10 +288,10 @@ Result writeMidi(const Project& p, const File& file) {
             auto on = MidiMessage::noteOn(channel,n.pitch,n.velocity); on.setTimeStamp((offset+n.beat)*960); seq.addEvent(on);
             auto off = MidiMessage::noteOff(channel,n.pitch); off.setTimeStamp((offset+n.beat+n.length)*960); seq.addEvent(off);
         };
-        if (!p.songMode) for (const auto& n : p.patterns[(size_t)p.activePattern].lanes[t]) emit(n,0);
+        if (!p.songMode) { for (const auto& n : p.patterns[(size_t)p.activePattern].lanes[t]) if(noteConditionMatches(n.conditionEvery,n.conditionStep,0))emit(n,0); }
         else for (const auto& c : p.clips) if (c.track == (int)t && !c.isAudio() && !c.isAutomation()) {
             const auto& pat = p.patterns[(size_t)c.pattern];
-            for (double off = 0; off < c.length; off += pat.length) for (const auto& n : pat.lanes[t]) if (off+n.beat < c.length) emit(n,c.beat+off);
+            for (double off = 0; off < c.length; off += pat.length) for (const auto& n : pat.lanes[t]) if (off+n.beat < c.length&&noteConditionMatches(n.conditionEvery,n.conditionStep,(uint64_t)std::floor((c.beat+off)/pat.length+1.e-9))) emit(n,c.beat+off);
         }
         seq.updateMatchedPairs(); midi.addTrack(seq);
     }
@@ -299,7 +321,8 @@ Result importMidi(const File& file, Project& p) {
         }
         if (!notes.empty()) {
             if (next.tracks.size() >= maxTracks) return Result::fail("MIDI exceeds 16 tracks.");
-            Track t; t.name = name; t.instrument = drums ? Instrument::sample : Instrument::lead; t.volume = .5f;
+            Track t;
+        t.name = name; t.instrument = drums ? Instrument::sample : Instrument::lead; t.volume = .5f;
             if (drums) t.instrument = Instrument::kick;
             next.tracks.push_back(t); pat.lanes.push_back(std::move(notes));
         }

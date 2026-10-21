@@ -1,0 +1,30 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+#include "PatternTools.h"
+#include <limits>
+static void testNoteClipboard(const File& root,Assets& assets){
+    std::vector<Note> copied={{3,.5,72,.8f,.4f,3},{1.5,.25,64,.6f,1,1}},destination={{0,.25,48,.7f}},output;double length=0;
+    expect(pasteLaneNotes(copied,destination,4,NotePasteMode::atCursor,5,false,output,length).wasOk()&&output.size()==3&&output[1].beat==6.5&&output[2].beat==5&&length==8,"cursor paste aligns earliest onset and preserves unsorted source order and relative timing");
+    expect(output[0]==destination[0]&&output[1].velocity==.8f&&output[1].probability==.4f&&output[1].ratchets==3&&copied[0].beat==3,"paste preserves existing notes, source data and articulation");
+    expect(pasteLaneNotes(copied,destination,4,NotePasteMode::originalPositions,999,false,output,length).wasOk()&&output[1]==copied[0]&&output[2]==copied[1]&&length==4,"original-position paste ignores unrelated cursor and preserves full note fields");
+    expect(pasteLaneNotes(copied,destination,4,NotePasteMode::atStart,999,true,output,length).wasOk()&&output.size()==2&&output[0].beat==1.5&&output[1].beat==0,"explicit replacement and first-onset alignment affect only destination lane");
+    auto alias=copied;expect(pasteLaneNotes(alias,alias,8,NotePasteMode::originalPositions,0,false,alias,length).wasOk()&&alias.size()==4&&alias[0]==alias[2],"in-place source and destination aliases are safe");
+    output=destination;length=17;auto atomic=[&]{return output==destination&&length==17;};
+    expect(pasteLaneNotes({},destination,4,NotePasteMode::atStart,0,false,output,length).failed()&&atomic(),"empty clipboard fails with caller output intact");
+    expect(pasteLaneNotes(copied,destination,4,NotePasteMode::atCursor,64,false,output,length).failed()&&atomic(),"out-of-range cursor fails atomically");
+    expect(pasteLaneNotes(copied,destination,4,NotePasteMode::atCursor,std::numeric_limits<double>::quiet_NaN(),false,output,length).failed()&&atomic(),"nonfinite cursor fails atomically");
+    expect(pasteLaneNotes(copied,destination,4,NotePasteMode::atCursor,63,false,output,length).failed()&&atomic(),"out-of-range note tails do not partially paste");
+    expect(pasteLaneNotes(copied,destination,0,NotePasteMode::atStart,0,false,output,length).failed()&&atomic(),"invalid destination length rejected");
+    auto invalid=copied;invalid[0].pitch=128;expect(pasteLaneNotes(invalid,destination,4,NotePasteMode::atStart,0,false,output,length).failed()&&atomic(),"invalid note pitch rejected before editing");invalid=copied;invalid[0].length=std::numeric_limits<double>::infinity();expect(pasteLaneNotes(invalid,destination,4,NotePasteMode::atStart,0,false,output,length).failed()&&atomic(),"nonfinite note data rejected atomically");
+    expect(pasteLaneNotes(copied,destination,4,(NotePasteMode)99,0,false,output,length).failed()&&atomic(),"unknown paste mode rejected");
+    std::vector<Note> full(maxNotesPerLane,{0,.25,60,.8f});expect(pasteLaneNotes(copied,full,8,NotePasteMode::atStart,0,false,output,length).failed()&&atomic(),"append checks total capacity before replacing outputs");expect(pasteLaneNotes(copied,full,8,NotePasteMode::atStart,0,true,output,length).wasOk()&&output.size()==2,"explicit replace works on a full destination lane");
+    expect(pasteLaneNotes({{63.5,.5,60,.8f}},destination,4,NotePasteMode::originalPositions,0,false,output,length).wasOk()&&length==64,"exact 64-beat end is valid and extends pattern");
+    auto project=emptyProject();project.patterns[0].lanes[7]=copied;project.patterns[0].lanes[5]={{0,1,36,.8f}};project.patterns[0].colour=4;Pattern target;target.name="Part 2";target.length=4;target.lanes.resize(project.tracks.size());target.lanes[7]=destination;project.patterns.push_back(target);project.clips={{7,0,0,8},{7,1,8,8}};Project next;
+    expect(copyNotesToPattern(project,0,7,{},1,7,false,false,next).wasOk()&&next.activePattern==1&&next.patterns[1].lanes[7].size()==3&&next.patterns[0].lanes[7]==copied,"copy channel notes to an existing pattern appends and retains source");
+    expect(next.patterns[0].lanes[5]==project.patterns[0].lanes[5]&&next.clips[1].pattern==1&&next.patterns[1].editorId==target.editorId&&next.patterns[0].colour==4,"transfer retains unrelated lanes, Playlist references and pattern identities/colours");
+    expect(copyNotesToPattern(project,0,7,{0},1,5,true,true,next).wasOk()&&next.patterns[1].lanes[5].size()==1&&next.patterns[1].lanes[5][0].beat==0&&next.patterns[1].lanes[5][0].pitch==72,"selected-note copy supports another channel, replacement and alignment");
+    auto unchanged=JSON::toString(projectToJson(next));expect(copyNotesToPattern(project,0,7,{99},1,7,false,false,next).failed()&&JSON::toString(projectToJson(next))==unchanged,"stale selection fails without changing output project");
+    expect(copyNotesToPattern(project,0,7,{},0,7,true,false,next).failed()&&JSON::toString(projectToJson(next))==unchanged,"same-lane transfer rejects without destructive replacement");
+    expect(copyNotesToPattern(project,0,7,{},1,99,false,false,next).failed(),"invalid destination channel rejected");project.tracks[6].isBus=true;expect(copyNotesToPattern(project,0,7,{},1,6,false,false,next).failed(),"bus destination rejected");project.tracks[6].isBus=false;
+    auto inPlace=project;expect(copyNotesToPattern(inPlace,0,7,{},1,7,true,false,inPlace).wasOk()&&inPlace.patterns[1].lanes[7]==copied,"project output aliasing is safe");
+    project.patterns[0].lanes[7][0].probability=1;project.patterns[0].lanes[7][0].ratchets=1;copyNotesToPattern(project,0,7,{},1,7,true,false,next);next.songMode=false;next.loop=false;auto reference=next;reference.patterns[1].lanes[7]=project.patterns[0].lanes[7];auto audio=render(next,assets,root,120000,127),manual=render(reference,assets,root,120000,512);expect(audio.getMagnitude(0,0,120000)>.001f&&std::equal(audio.getReadPointer(0),audio.getReadPointer(0)+120000,manual.getReadPointer(0)),"transferred melody renders like manually copied notes across callback sizes");
+}

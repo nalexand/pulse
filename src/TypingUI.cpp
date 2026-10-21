@@ -15,17 +15,22 @@ bool Studio::typingKeyOn(int key,int pitch){
     if(!typingEnabled||heldKeys.count(key)||project.tracks[(size_t)selectedTrack].isBus)return false;
     pitch+=typingTranspose;if(pitch<0||pitch>127){status="Typing note is outside MIDI pitch 0-127. Lower the octave or transposition.";return false;}
     auto context=typingContext();if(context!=typingCaptureContext){releaseKeys();typingCapture.clear();typingCaptureContext=context;}
+    // The expanded rows overlap (comma/Q, period/W, slash/E). Share their gate
+    // until the last physical key releases, rather than cutting another held key.
+    for(const auto& [other,note]:heldKeys)if(note.track==selectedTrack&&note.pitch==pitch){heldKeys[key]={selectedTrack,pitch};repaint();return true;}
     // Rearticulation closes an older sustained instance of the same pitch first.
     for(auto it=sustainedKeys.begin();it!=sustainedKeys.end();)if(it->track==selectedTrack&&it->pitch==pitch){releaseTypingNote(*it);it=sustainedKeys.erase(it);}else++it;
     if(!engine->audition(selectedTrack,pitch,true,typingVelocity/127.f)){status="Typing input queue busy; note was not started.";return false;}
-    heldKeys[key]={selectedTrack,pitch};if(typingCaptureEnabled)typingCapture.noteOn(pitch,typingVelocity/127.f,Time::getMillisecondCounterHiRes());recordOn(pitch);return true;
+    if(panes[pianoPane].visible&&(pianoLow<0||pitch<pianoLow||pitch>=pianoLow+pianoRows))pianoLow=jlimit(0,128-pianoRows,pitch-pianoRows/2);
+    heldKeys[key]={selectedTrack,pitch};if(typingCaptureEnabled)typingCapture.noteOn(pitch,typingVelocity/127.f,Time::getMillisecondCounterHiRes());recordOn(pitch);repaint();return true;
 }
 void Studio::releaseTypingNote(TypingHeld note){
     if(!engine->audition(note.track,note.pitch,false))engine->auditionPanicRequested.store(true);
     typingCapture.noteOff(note.pitch,Time::getMillisecondCounterHiRes());recordOff(note.pitch);
 }
-void Studio::typingKeyOff(int key){auto it=heldKeys.find(key);if(it==heldKeys.end())return;if(typingSustain)sustainedKeys.push_back(it->second);else releaseTypingNote(it->second);heldKeys.erase(it);}
-void Studio::setTypingSustain(bool enabled){typingSustain=enabled;if(!enabled){for(const auto& n:sustainedKeys)releaseTypingNote(n);sustainedKeys.clear();}status=enabled?"Typing sustain on. Ctrl+Shift+K releases sustained notes.":"Typing sustain off.";}
+void Studio::typingKeyOff(int key){auto it=heldKeys.find(key);if(it==heldKeys.end())return;auto note=it->second;heldKeys.erase(it);for(const auto& [other,held]:heldKeys)if(held.track==note.track&&held.pitch==note.pitch){repaint();return;}if(typingSustain)sustainedKeys.push_back(note);else releaseTypingNote(note);repaint();}
+bool Studio::pianoPitchActive(int pitch)const{for(const auto& [key,note]:heldKeys)if(note.track==selectedTrack&&note.pitch==pitch)return true;for(const auto& note:sustainedKeys)if(note.track==selectedTrack&&note.pitch==pitch)return true;return mousePitch==pitch&&mousePitchTrack==selectedTrack;}
+void Studio::setTypingSustain(bool enabled){typingSustain=enabled;if(!enabled){for(const auto& n:sustainedKeys)releaseTypingNote(n);sustainedKeys.clear();}status=enabled?"Typing sustain on. "+(shortcutHint("typing.sustain").isEmpty()?String("Use the KEYS menu to release sustained notes."):shortcutHint("typing.sustain")+" releases sustained notes."):"Typing sustain off.";repaint();}
 bool Studio::recallTypingPhrase(double now){
     if(recording||recorder.isActive()||exporting.load()){status="Finish the take or export before recalling a typing phrase.";return false;}
     if(pendingNoteTool())return false;
@@ -40,9 +45,9 @@ bool Studio::recallTypingPhrase(double now){
 }
 void Studio::showTypingMenu(){
     releaseKeys();PopupMenu menu;menu.addSectionHeader("Typing keyboard / velocity "+String(typingVelocity)+" / octave "+String(octave));
-    menu.addItem(typingToggle,"Enabled   Ctrl+T",true,typingEnabled);menu.addItem(typingSustainToggle,"Sustain latch   Ctrl+Shift+K",true,typingSustain);
+    menu.addItem(typingToggle,shortcutLabel("Enabled","typing.toggle"),true,typingEnabled);menu.addItem(typingSustainToggle,shortcutLabel("Sustain latch","typing.sustain"),true,typingSustain);
     PopupMenu velocities;for(int v:{32,64,80,102,127})velocities.addItem(1000+v,String(v),true,typingVelocity==v);velocities.addItem(typingVelocityEdit,"Type velocity (1-127)...");menu.addSubMenu("Velocity",velocities);
-    PopupMenu octaves;for(int v=1;v<=7;++v)octaves.addItem(2000+v,"Octave "+String(v),true,octave==v);menu.addSubMenu("Octave   [ / ]",octaves);
+    PopupMenu octaves;for(int v=1;v<=7;++v)octaves.addItem(2000+v,"Octave "+String(v)+" / Z = C"+String(v),true,octave==v);menu.addSubMenu("Octave   "+shortcutHint("typing.octaveDown")+" / "+shortcutHint("typing.octaveUp"),octaves);
     PopupMenu transpose;for(int v=-12;v<=12;++v)transpose.addItem(3012+v,(v>0?"+":"")+String(v)+" semitones",true,typingTranspose==v);menu.addSubMenu("Transpose",transpose);
     menu.addItem(typingCaptureToggle,"Retrospective capture enabled",true,typingCaptureEnabled);PopupMenu history;for(int seconds:{15,30,60})history.addItem(4000+seconds,String(seconds)+" seconds",true,typingCaptureSeconds==seconds);menu.addSubMenu("Capture history",history);
     menu.addSeparator();menu.addItem(typingRecall,"Recall last phrase (new pattern / PAT mode)",project.patterns.size()<maxPatterns&&!project.tracks[(size_t)selectedTrack].isBus);menu.addItem(typingCaptureClear,"Clear recent typing performance");
@@ -55,11 +60,11 @@ bool Studio::performTypingAction(int action,int data){
     case typingMenu:showTypingMenu();break;
     case typingSustainToggle:setTypingSustain(!typingSustain);break;
     case typingVelocitySet:if(data>=1&&data<=127){typingVelocity=data;saveTypingPreferences();status="Typing velocity: "+String(data)+" / 127 (new notes only).";}else status="Typing velocity must be an integer from 1 to 127.";break;
-    case typingOctaveSet:if(data>=1&&data<=7){releaseKeys();octave=data;saveTypingPreferences();status="Typing octave: "+String(data)+". Use [ / ] to change it.";}break;
+    case typingOctaveSet:if(data>=1&&data<=7){releaseKeys();octave=data;saveTypingPreferences();status="Typing keyboard: Z = C"+String(data)+", Q = C"+String(data+1)+". Octave keys: "+shortcutHint("typing.octaveDown")+" / "+shortcutHint("typing.octaveUp")+".";}break;
     case typingTransposeSet:if(data>=-12&&data<=12){releaseKeys();typingTranspose=data;saveTypingPreferences();status="Typing transpose: "+String(data)+" semitones (new notes only).";}break;
     case typingCaptureToggle:releaseKeys();typingCapture.clear();typingCaptureEnabled=!typingCaptureEnabled;saveTypingPreferences();status=typingCaptureEnabled?"Retrospective typing capture enabled; notes stay in memory until recall.":"Retrospective typing capture disabled; its memory is cleared.";break;
     case typingCaptureWindow:if(data==15||data==30||data==60){typingCaptureSeconds=data;typingCapture.setWindow(data*1000.);typingCapture.expire(Time::getMillisecondCounterHiRes());saveTypingPreferences();status="Typing capture history: "+String(data)+" seconds, up to 64 beats.";}break;
-    case typingVelocityEdit:{releaseKeys();auto* d=new AlertWindow("Typing velocity","Velocity for new typing notes and recorded takes (integer 1-127). Ctrl+Shift+Up/Down adjusts by 8.",MessageBoxIconType::NoIcon,this);d->addTextEditor("velocity",String(typingVelocity));d->addButton("Apply",1,KeyPress(KeyPress::returnKey));d->addButton("Cancel",0,KeyPress(KeyPress::escapeKey));auto safe=Component::SafePointer<Studio>(this);d->enterModalState(true,ModalCallbackFunction::create([safe,d](int result){if(!safe||result!=1)return;auto text=d->getTextEditorContents("velocity").trim();if(text.isEmpty()||!text.containsOnly("0123456789")||text.length()>3){safe->status="Typing velocity must be an integer from 1 to 127.";return;}safe->perform(typingVelocitySet,text.getIntValue());}),true);break;}
+    case typingVelocityEdit:{releaseKeys();auto* d=new AlertWindow("Typing velocity","Velocity for new typing notes and recorded takes (integer 1-127). "+shortcutHint("typing.velocityUp")+" / "+shortcutHint("typing.velocityDown")+" adjusts by 8.",MessageBoxIconType::NoIcon,this);d->addTextEditor("velocity",String(typingVelocity));d->addButton("Apply",1,KeyPress(KeyPress::returnKey));d->addButton("Cancel",0,KeyPress(KeyPress::escapeKey));auto safe=Component::SafePointer<Studio>(this);d->enterModalState(true,ModalCallbackFunction::create([safe,d](int result){if(!safe||result!=1)return;auto text=d->getTextEditorContents("velocity").trim();if(text.isEmpty()||!text.containsOnly("0123456789")||text.length()>3){safe->status="Typing velocity must be an integer from 1 to 127.";return;}safe->perform(typingVelocitySet,text.getIntValue());}),true);break;}
     case typingRecall:recallTypingPhrase(Time::getMillisecondCounterHiRes());break;
     case typingCaptureClear:releaseKeys();typingCapture.clear();typingCaptureContext.clear();status="Recent typing performance cleared from memory.";break;
     default:break;

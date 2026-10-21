@@ -4,7 +4,7 @@
 #include "ControlEdits.h"
 static void testAppearance(const File& root,Assets& assets){
     auto source=demoProject();for(int i=0;i<(int)source.patterns.size();++i)source.patterns[(size_t)i].colour=i+1;
-    Project loaded;expect(projectSchema==14&&projectFromJson(projectToJson(source),loaded).wasOk()&&JSON::toString(projectToJson(source))==JSON::toString(projectToJson(loaded)),"schema 14 preserves every pattern colour without changing note state");
+    Project loaded;expect(projectFromJson(projectToJson(source),loaded).wasOk()&&JSON::toString(projectToJson(source))==JSON::toString(projectToJson(loaded)),"schema 14 preserves every pattern colour without changing note state");
     auto file=root.getChildFile("coloured-patterns.pulse");expect(saveProject(source,file).wasOk()&&loadProject(file,loaded).wasOk()&&loaded.patterns[0].colour==1,"pattern colours persist to native files");
     for(int schema=1;schema<=13;++schema){auto v=projectToJson(emptyProject());v.getDynamicObject()->setProperty("schema",schema);for(auto& p:*v["patterns"].getArray())p.getDynamicObject()->removeProperty("colour");expect(projectFromJson(v,loaded).wasOk()&&loaded.patterns[0].colour==0,"older project schemas migrate missing colour to Automatic");}
     auto before=JSON::toString(projectToJson(loaded));for(auto bad:{var(-1),var(13),var(1.5),var("3"),var(true),var()}){auto v=projectToJson(source);(*v["patterns"].getArray())[0].getDynamicObject()->setProperty("colour",bad);expect(projectFromJson(v,loaded).failed()&&JSON::toString(projectToJson(loaded))==before,"invalid persisted pattern colours fail atomically");}

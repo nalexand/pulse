@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+#include "Version.h"
 #include "ControlMailbox.h"
 namespace pulse {
 using namespace juce;
@@ -7,7 +8,7 @@ bool write(const File& file,const var& value){TemporaryFile tmp(file);return tmp
 }
 Result ControlMailbox::start(const File& workspace){
     stop();root=workspace.getChildFile("data/control");sessionId=Uuid().toString().removeCharacters("-");token=Uuid().toString()+Uuid().toString();folder=root.getChildFile(sessionId);auto result=folder.getChildFile("requests").createDirectory();if(result.wasOk())result=folder.getChildFile("responses").createDirectory();if(result.failed()){sessionId.clear();return result;}
-    auto* metadata=new DynamicObject();metadata->setProperty("schema",1);metadata->setProperty("session",sessionId);metadata->setProperty("token",token);metadata->setProperty("application","Pulse Studio");metadata->setProperty("version","0.37.0");metadata->setProperty("startedAt",Time::currentTimeMillis());if(!write(root.getChildFile("session.json"),var(metadata))){sessionId.clear();return Result::fail("Could not publish the local MCP session.");}return Result::ok();
+    auto* metadata=new DynamicObject();metadata->setProperty("schema",1);metadata->setProperty("session",sessionId);metadata->setProperty("token",token);metadata->setProperty("application","Pulse Studio");metadata->setProperty("version",appVersion);metadata->setProperty("startedAt",Time::currentTimeMillis());if(!write(root.getChildFile("session.json"),var(metadata))){sessionId.clear();return Result::fail("Could not publish the local MCP session.");}return Result::ok();
 }
 void ControlMailbox::stop(){if(sessionId.isNotEmpty()){auto file=root.getChildFile("session.json");auto metadata=JSON::parse(file.loadFileAsString());if(metadata["session"].toString()==sessionId)file.deleteFile();}sessionId.clear();token.clear();seen.clear();order.clear();}
 void ControlMailbox::poll(const std::function<Result(const String&,const var&,var&)>& handler){

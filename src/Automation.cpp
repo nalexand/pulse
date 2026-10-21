@@ -76,12 +76,14 @@ void Studio::paintAutomation(Graphics& g,Rectangle<float> r){
     const Colour text(0xffd9ddde),accent(0xffd3af71),muted(0xffadb7bd);
     g.setColour(Colour(0xff3b464c));g.fillRect(r);auto* c=automationClip();
     if(!c){label(g,"Select an automation clip, or right-click a mixer control and choose Create automation clip.",r.reduced(20),12,text);return;}
-    label(g,(c->automationTarget==5?"Master":project.tracks[(size_t)c->automationTrack].name)+" - "+automationName((AutomationTarget)c->automationTarget),{r.getX()+11,r.getY()+3,r.getWidth()-310,25},12,text,true);
+    label(g,(c->automationTarget==5?"Master":project.tracks[(size_t)c->automationTrack].name)+" - "+automationName((AutomationTarget)c->automationTarget),{r.getX()+11,r.getY()+3,r.getWidth()-400,25},12,text,true);
+    button(g,"Shape...",{r.getRight()-387,r.getY()+4,87,23},automationShapeOpen);
+    button(g,"Generate...",{r.getX()+11,r.getY()+33,125,23},automationGenerateOpen);
     bool hold=selectedPoint>=0&&selectedPoint<(int)c->points.size()&&c->points[(size_t)selectedPoint].hold;
-    button(g,hold?"STEP":"LINEAR",{r.getRight()-294,r.getY()+4,69,23},automationHold,0,hold);
+    button(g,hold?"STEP":selectedPoint>=0&&selectedPoint<(int)c->points.size()?String(automationCurveName(c->points[(size_t)selectedPoint].curve)):"LINEAR",{r.getRight()-294,r.getY()+4,69,23},automationHold,0,hold);
     button(g,"Reset curve",{r.getRight()-220,r.getY()+4,87,23},automationReset);button(g,"Playlist",{r.getRight()-128,r.getY()+4,70,23},arrangeTab);
     button(g,snap>0?"Snap":"Free",{r.getRight()-53,r.getY()+4,47,23},snapMenu);
-    automationRect={r.getX()+48,r.getY()+55,r.getWidth()-63,r.getHeight()-84};
+    automationRect={r.getX()+48,r.getY()+83,r.getWidth()-63,r.getHeight()-112};
     g.setColour(Colour(0xff293439));g.fillRect(automationRect);
     for(int n=0;n<=4;++n){float y=automationRect.getBottom()-n*.25f*automationRect.getHeight();g.setColour(Colour(0xff58656b));g.drawHorizontalLine((int)y,automationRect.getX(),automationRect.getRight());label(g,String(n*25)+"%",{r.getX()+3,y-8,40,16},10,muted,false,Justification::centredRight);}
     double step=jmax(1.,std::ceil(c->length/16));for(double beat=0;beat<=c->length;beat+=step){float x=automationRect.getX()+(float)(beat/c->length)*automationRect.getWidth();g.setColour(Colour(0xff46535a));g.drawVerticalLine((int)x,automationRect.getY(),automationRect.getBottom());label(g,String(beat,0),{x+3,automationRect.getY()-21,45,18},10,muted);}
@@ -90,7 +92,7 @@ void Studio::paintAutomation(Graphics& g,Rectangle<float> r){
     auto area=curve;area.lineTo(automationRect.getRight(),automationRect.getBottom());area.lineTo(automationRect.getX(),automationRect.getBottom());area.closeSubPath();g.setColour(accent.withAlpha(.12f));g.fillPath(area);g.setColour(accent);g.strokePath(curve,PathStrokeType(1.8f));
     for(int i=0;i<(int)c->points.size();++i){const auto& p=c->points[(size_t)i];if(p.beat>c->length)continue;float x=automationRect.getX()+(float)(p.beat/c->length)*automationRect.getWidth(),y=automationRect.getBottom()-p.value*automationRect.getHeight();g.setColour(i==selectedPoint?Colours::white:accent);g.fillEllipse(x-4,y-4,8,8);hits.push_back({{x-7,y-7,14,14},automationPoint,i});}
     if(engine->playing.load()&&project.songMode){double at=engine->position.load()-c->beat;if(at>=0&&at<=c->length){g.setColour(Colour(0xffb2c98d));g.drawVerticalLine((int)(automationRect.getX()+at/c->length*automationRect.getWidth()),automationRect.getY(),automationRect.getBottom());}}
-    String value=selectedPoint>=0&&selectedPoint<(int)c->points.size()?"Point "+String(selectedPoint+1)+"  |  "+String(c->points[(size_t)selectedPoint].beat,3)+" beats  |  "+String(c->points[(size_t)selectedPoint].value*100,1)+"%":"Click to add points; drag to edit; right-click deletes interior points.";
+    String value=selectedPoint>=0&&selectedPoint<(int)c->points.size()?"Point "+String(selectedPoint+1)+"  |  "+String(c->points[(size_t)selectedPoint].beat,3)+" beats  |  "+String(c->points[(size_t)selectedPoint].value*100,1)+"%  |  "+String(c->points[(size_t)selectedPoint].hold?"Hold":automationCurveName(c->points[(size_t)selectedPoint].curve))+" / tension "+String(c->points[(size_t)selectedPoint].tension,2):"Click to add points; drag to edit; right-click deletes interior points.";
     label(g,value,{automationRect.getX(),r.getBottom()-24,automationRect.getWidth(),20},10,muted);
 }
 }

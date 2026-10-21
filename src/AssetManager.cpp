@@ -3,17 +3,21 @@
 #include <algorithm>
 namespace pulse {
 using namespace juce;
-void Studio::startAssetAudit(const File& searchFolder){
+void Studio::startAssetAudit(const File& searchFolder,bool forceFingerprints){
     if(assetBusy){assetNeedsRefresh=true;status="Audio-file scan in progress.";return;}
     if(assetThread.joinable())assetThread.join();
-    auto snapshot=project;auto base=currentFile==File()?root:currentFile.getParentDirectory();
+    auto snapshot=project;auto base=currentFile==File()?root:currentFile.getParentDirectory();auto cacheFile=root.getChildFile("data/asset-fingerprints.json");bool force=forceFingerprints||assetLearnPending;assetLearnPending=false;
     assetTaskGeneration=assetGeneration;assetLastCheck=Time::currentTimeMillis();assetNeedsRefresh=false;assetCancel.store(false);assetDone.store(false);assetBusy=true;
     assetMessage=searchFolder==File()?"Checking project audio files...":"Searching local folder and subfolders...";
-    assetThread=std::thread([this,snapshot=std::move(snapshot),base,searchFolder]{
+    assetThread=std::thread([this,snapshot=std::move(snapshot),base,searchFolder,cacheFile,force]{
         auto rows=projectAssets(snapshot,base);inspectProjectAssets(rows,snapshot,&assetCancel);
+        auto token=assetFingerprintToken(cacheFile);AssetFingerprints fingerprints;auto loaded=loadAssetFingerprints(cacheFile,fingerprints);auto prior=fingerprints;
+        auto learned=learnProjectAssetFingerprints(rows,fingerprints,force,&assetCancel);
         String message;
         if(searchFolder!=File())message=findProjectAssets(rows,searchFolder,&assetCancel);
         else{int issues=0;for(auto& row:rows)issues+=row.issue!=AssetIssue::ready;message=String((int)rows.size())+" audio sources; "+String(issues)+" need attention.";}
+        if(!assetCancel.load()&&loaded.wasOk()&&fingerprints!=prior){auto saved=saveAssetFingerprints(cacheFile,fingerprints,token,&assetCancel);if(saved.failed())message+=" "+saved.getErrorMessage();}
+        if(loaded.failed())message=loaded.getErrorMessage()+" "+message;if(learned.isNotEmpty())message+=" "+learned;
         assetWorkerRows=std::move(rows);assetWorkerMessage=message;assetDone.store(true,std::memory_order_release);
     });repaint();
 }
@@ -31,8 +35,11 @@ void Studio::finishAssetAudit(){
 }
 bool Studio::applyAssetReplacements(const std::vector<AssetReplacement>& replacements){
     if(recording||recorder.isActive()){status="Finish the take before relinking audio.";return false;}
-    auto next=project;int references=0;auto result=relinkProjectAssets(next,currentFile==File()?root:currentFile.getParentDirectory(),replacements,&references);
+    if(assetBusy||assetNeedsRefresh||assetTaskGeneration!=assetGeneration){status="Refresh the audio-file list before relinking.";return false;}
+    auto checked=replacements;for(auto& replacement:checked)if(replacement.contentHash.isEmpty()){auto row=std::find_if(assetRows.begin(),assetRows.end(),[&](const auto& source){return source.key==replacement.key;});if(row!=assetRows.end())replacement.contentHash=row->contentHash;}
+    auto next=project;int references=0;auto result=relinkProjectAssets(next,currentFile==File()?root:currentFile.getParentDirectory(),checked,&references);
     if(result.failed()){status=result.getErrorMessage();return false;}
+    if(JSON::toString(projectToJson(project),true,22)==JSON::toString(projectToJson(next),true,22)){status="These audio references are already linked; no edit was added.";return true;}
     for(auto& replacement:replacements){String error;if(!assets.load(replacement.file,error)){status=error;return false;}}
     checkpoint();engine->preview(nullptr);project=std::move(next);changed();assetRevealMissing=false;
     status="Relinked "+String(references)+" references. Notes, trims, fades and selections are preserved. Ctrl+Z undoes this change.";startAssetAudit();return true;
@@ -55,17 +62,17 @@ void Studio::paintProjectAssets(Graphics& g,Rectangle<float> r){
         g.setColour(index==selectedAsset?Colour(0xff526153):Colour(row%2?0xff364147:0xff3d494f));g.fillRect(Rectangle<float>(x,top,assetListRect.getWidth(),28));
         String name=item.file==File()?String("Empty sampler"):item.file.getFileName();label(g,name,{x+7,top,usedX-x-15,28},11,text);
         label(g,String((int)item.uses.size()),{usedX,top,49,28},11,muted);
-        String detail=assetIssueName(item.issue);if(!item.candidates.empty())detail+=" / "+String((int)item.candidates.size())+" matches";
+        String detail=assetIssueName(item.issue);if(!item.candidates.empty())detail+=" / "+String((int)item.candidates.size())+(item.candidatesLimited?"+":"")+" matches";
         label(g,detail,{statusX,top,211,28},11,item.issue==AssetIssue::ready?accent:warning);hits.push_back({{x,top,assetListRect.getWidth(),28},assetSelect,index});
     }
     if(assetRows.empty())label(g,assetBusy?"Checking audio references...":"This project uses synthesized sounds; no audio files are referenced.",assetListRect.reduced(8),12,muted);
     g.restoreState();float bottom=r.getBottom()-130;
     if(selectedAsset>=0&&selectedAsset<(int)assetRows.size()){
         auto& item=assetRows[(size_t)selectedAsset];label(g,item.file==File()?"No file selected":item.file.getFullPathName(),{x,bottom,r.getWidth()-20,25},11,text);
-        label(g,item.detail,{x,bottom+27,r.getWidth()-20,23},11,item.issue==AssetIssue::ready?muted:warning);
+        label(g,item.detail+(item.contentHash.isNotEmpty()?" / SHA-256 "+item.contentHash.substring(0,12):" / no remembered fingerprint"),{x,bottom+27,r.getWidth()-20,23},11,item.issue==AssetIssue::ready?muted:warning);
         String uses="Used by: ";for(auto use:item.uses){String name;if(use.clip&&use.index<(int)project.clips.size()){auto& clip=project.clips[(size_t)use.index];name="Playlist clip "+String(use.index+1)+" ("+project.tracks[(size_t)clip.track].name+")";}else if(!use.clip&&use.index<(int)project.tracks.size())name=project.tracks[(size_t)use.index].name;if(uses.length()<400)uses+=name+"; ";}
         label(g,uses,{x,bottom+53,r.getWidth()-20,23},10,muted);
-        String candidate=item.candidates.size()==1?"Proposed: "+item.candidates[0].getFullPathName():item.candidates.size()>1?"Several matches found. Choose one explicitly; ambiguous files are never applied automatically.":"Locate a file manually or search a local folder. Relinking is undoable.";
+        String candidate=item.candidates.size()==1?(item.searchComplete?String("Proposed ")+(item.contentHash.isNotEmpty()?"(exact content): ":"(name only): "):"Incomplete search / choose explicitly: ")+item.candidates[0].getFullPathName():item.candidates.size()>1?"Several matches found. Choose one explicitly; ambiguous files are never applied automatically.":"Locate a file manually or search a local folder. Relinking is undoable.";
         label(g,candidate,{x,bottom+80,r.getWidth()-20,39},10,accent);
     }
 }
@@ -73,12 +80,12 @@ bool Studio::performAssetAction(int action,int data){
     if(action<assetsOpen||action>assetCancelScan)return false;
     if(recording||recorder.isActive()){status="Finish the take before relinking audio.";return true;}
     if(action==assetsOpen){showPane(assetsPane);startAssetAudit();return true;}
-    if(action==assetsRefresh){startAssetAudit();return true;}
+    if(action==assetsRefresh){startAssetAudit({},true);return true;}
     if(action==assetCancelScan){if(assetBusy){assetCancel.store(true);status="Cancelling audio-file search...";}return true;}
     if(action==assetSelect){if(data>=0&&data<(int)assetRows.size())selectedAsset=data;return true;}
     if(assetBusy||assetNeedsRefresh||assetTaskGeneration!=assetGeneration){status="Refresh the audio-file list before relinking.";if(!assetBusy)startAssetAudit();return true;}
     if(action==assetFind){chooser=std::make_unique<FileChooser>("Search for missing project audio",root,"*",true);auto safe=Component::SafePointer<Studio>(this);chooser->launchAsync(FileBrowserComponent::openMode|FileBrowserComponent::canSelectDirectories,[safe](const FileChooser& fc){if(safe&&fc.getResult()!=File())safe->startAssetAudit(fc.getResult());});return true;}
-    if(action==assetApplyMatches){std::vector<AssetReplacement> replacements;for(auto& row:assetRows)if(row.issue!=AssetIssue::ready&&row.candidates.size()==1)replacements.push_back({row.key,row.candidates[0]});applyAssetReplacements(replacements);return true;}
+    if(action==assetApplyMatches){std::vector<AssetReplacement> replacements;for(auto& row:assetRows)if(row.issue!=AssetIssue::ready&&row.searchComplete&&row.candidates.size()==1)replacements.push_back({row.key,row.candidates[0],row.contentHash});if(replacements.empty())status="No complete unique matches. Choose a match explicitly or search a smaller folder.";else applyAssetReplacements(replacements);return true;}
     if(selectedAsset<0||selectedAsset>=(int)assetRows.size()){status="Select an audio source first.";return true;}
     auto item=assetRows[(size_t)selectedAsset];auto expected=assetGeneration;
     if(action==assetLocate){chooser=std::make_unique<FileChooser>("Locate replacement for "+(item.file==File()?String("empty sampler"):item.file.getFileName()),item.file==File()?root:item.file.getParentDirectory(),"*.wav;*.aif;*.aiff;*.flac;*.ogg",true);auto safe=Component::SafePointer<Studio>(this);chooser->launchAsync(FileBrowserComponent::openMode|FileBrowserComponent::canSelectFiles,[safe,item,expected](const FileChooser& fc){if(!safe||fc.getResult()==File())return;if(safe->assetGeneration!=expected){safe->status="Project changed. Refresh references and choose the file again.";return;}safe->applyAssetReplacements({{item.key,fc.getResult()}});safe->repaint();});}

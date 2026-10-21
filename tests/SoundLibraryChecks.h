@@ -2,7 +2,7 @@
 #include "SoundLibrary.h"
 static void testSoundLibrary(const File& root,Assets& assets){
     auto file=root.getChildFile("personal-sound-checks.json");file.deleteFile();SoundLibrary library;expect(loadSoundLibrary(file,library).wasOk()&&library.personal.empty()&&library.favorites.isEmpty(),"absent sound library starts empty without creating a file");expect(!file.exists(),"reading an absent sound library has no disk mutation");
-    std::set<String> factoryIds;for(const auto& p:factorySynthPresets())factoryIds.insert(factorySoundId(p));expect(factoryIds.size()==56,"factory sound identities are stable and unique across engines");
+    std::set<String> factoryIds;for(const auto& p:factorySynthPresets())factoryIds.insert(factorySoundId(p));expect(factoryIds.size()==72,"factory sound identities are stable and unique across engines");
     PersonalSound entry{"user-first",factorySynthPresets()[7]};entry.sound.name=String::fromUTF8("Мой звук");entry.sound.category="Personal leads";entry.sound.patch.cutoff=2345;
     expect(putPersonalSound(file,entry).wasOk(),"new named sound saves into local personal library");expect(loadSoundLibrary(file,library).wasOk()&&library.personal.size()==1&&library.personal[0].sound.name==entry.sound.name&&library.personal[0].sound.patch==entry.sound.patch,"sound library roundtrip retains Unicode and every synth parameter");auto before=file.loadFileAsString();
     expect(putPersonalSound(file,entry).failed()&&file.loadFileAsString()==before,"existing personal identity requires explicit update");auto duplicate=entry;duplicate.id="user-second";expect(putPersonalSound(file,duplicate).failed()&&file.loadFileAsString()==before,"duplicate sound name in one engine is rejected atomically");

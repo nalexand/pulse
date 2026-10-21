@@ -4,7 +4,7 @@ namespace pulse {
 using namespace juce;
 Colour Studio::patternColor(int index)const{
     if(index>=0&&index<(int)project.patterns.size())if(auto argb=patternColourARGB(project.patterns[(size_t)index].colour))return Colour(argb);
-    return Colour(0xffb2c98d);
+    return Colour(automaticPatternColourARGB(index));
 }
 bool Studio::applyPatternColour(const String& id,uint64_t sourceRevision,int colour){
     if(recording||recorder.isActive()||pendingNoteTool()){status="Finish the take and resolve the note preview before changing pattern colour.";return false;}
@@ -17,7 +17,7 @@ bool Studio::applyPatternColour(const String& id,uint64_t sourceRevision,int col
 void Studio::showPatternColours(){
     if(recording||recorder.isActive()||pendingNoteTool()){status="Finish the take and resolve the note preview before changing pattern colour.";return;}
     PopupMenu menu;auto id=project.patterns[(size_t)project.activePattern].editorId;auto rev=revision;
-    for(int c=0;c<patternColourCount;++c)menu.addColouredItem(c+1,patternColourName(c),c?Colour(patternColourARGB(c)):Colour(0xffd9ddde),true,c==project.patterns[(size_t)project.activePattern].colour);
+    for(int c=0;c<patternColourCount;++c)menu.addColouredItem(c+1,patternColourName(c),c?Colour(patternColourARGB(c)):Colour(automaticPatternColourARGB(project.activePattern)),true,c==project.patterns[(size_t)project.activePattern].colour);
     auto safe=Component::SafePointer<Studio>(this);menu.showMenuAsync(menuOptions(patternMenu),[safe,id,rev](int result){if(safe&&result>0){safe->applyPatternColour(id,rev,result-1);safe->repaint();}});
 }
 void Studio::restoreMetronomeSettings(){

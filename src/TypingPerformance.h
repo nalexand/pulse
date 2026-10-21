@@ -6,8 +6,10 @@
 #include <cmath>
 
 namespace pulse {
+// Two piano rows. Physical ASCII key code wins over shifted text characters.
+int typingKeyOffset(int keyCode,juce::juce_wchar textCharacter);
 struct TypingSettings {
-    int velocity=102,octave=4;
+    int velocity=102,octave=3;
     bool enabled=true;
     int transpose=0;
     bool capture=true;

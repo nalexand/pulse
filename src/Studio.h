@@ -3,11 +3,27 @@
 #include "Engine.h"
 #include "Recorder.h"
 #include "ProjectAssets.h"
+#include "ProjectArchive.h"
+#include "ProjectVersions.h"
+#include "ProjectPersistence.h"
+#include "RecoveryWriter.h"
+#include "RecoveryRetention.h"
+#include "Shortcuts.h"
+#include "SamplerTuning.h"
 #include "Templates.h"
 #include "RecordingTools.h"
 #include "InputAudio.h"
 #include "Render.h"
+#include "Notation.h"
+#include "MixAnalysis.h"
+#include "ReferenceComparison.h"
+#include "AudioToNotes.h"
+#include "Restoration.h"
 #include "NoteTools.h"
+#include "Groove.h"
+#include "AutomationTools.h"
+#include "Harmony.h"
+#include "HarmonyPresets.h"
 #include "Rhythm.h"
 #include "Arpeggiator.h"
 #include "NotePresets.h"
@@ -16,18 +32,23 @@
 #include "WaveTools.h"
 #include "SynthPresets.h"
 #include "SoundLibrary.h"
+#include "SampleFavorites.h"
+#include "SamplePreview.h"
 #include "EffectPresets.h"
 #include "WorkspaceLayouts.h"
 #include "ControlMailbox.h"
 #include "TypingPerformance.h"
 #include <optional>
 #include "CommandPalette.h"
+#include "HistoryBrowser.h"
 #include <juce_audio_utils/juce_audio_utils.h>
 #include <thread>
 #include <deque>
 #include <set>
 
 namespace pulse {
+struct AutosaveVerificationState;
+juce::String shortcutForKey(const juce::KeyPress&);
 class Studio final : public juce::AudioAppComponent, private juce::Timer,
                      public juce::FileDragAndDropTarget {
 public:
@@ -37,9 +58,10 @@ public:
     void resized() override;
     void prepareToPlay(int,double) override;
     void getNextAudioBlock(const juce::AudioSourceChannelInfo&) override;
-    void releaseResources() override { activeOutputs.store(0);activeInputs.store(0);inputMonitor.store(false);inputPeaks.reset();if(recorder.isActive())recordDeviceStopped.store(true); }
+    void releaseResources() override { audioHistory.invalidate();activeOutputs.store(0);activeInputs.store(0);inputMonitor.store(false);inputPeaks.reset();if(recorder.isActive())recordDeviceStopped.store(true); }
     void mouseDown(const juce::MouseEvent&) override;
     void mouseMove(const juce::MouseEvent&) override;
+    void modifierKeysChanged(const juce::ModifierKeys&) override;
     void mouseExit(const juce::MouseEvent&) override;
     void mouseDrag(const juce::MouseEvent&) override;
     void mouseUp(const juce::MouseEvent&) override;
@@ -57,10 +79,12 @@ public:
     int requestedInterfaceScale()const{return interfaceScalePercent;}
     void setEffectiveInterfaceScale(float scale){effectiveInterfaceScale=scale;}
     juce::Result setLocalControlEnabled(bool);
+    bool saveRecoveryForClose();
+    bool requiresRecoveryOnClose()const;
     bool isDirty() const { return dirty; }
     void save();
     bool snapshot(const juce::File&);
-    bool runEditorChecks(const juce::File&,bool typingOnly=false,bool arrangementOnly=false,bool appearanceOnly=false,bool selectionOnly=false,bool sectionsOnly=false,bool resamplingOnly=false);
+    bool runEditorChecks(const juce::File&,bool typingOnly=false,bool arrangementOnly=false,bool appearanceOnly=false,bool selectionOnly=false,bool sectionsOnly=false,bool resamplingOnly=false,bool browserKeyboardOnly=false,bool clipboardOnly=false,bool samplesOnly=false,bool archivesOnly=false,bool harmonyOnly=false,bool versionsOnly=false,bool shortcutsOnly=false,bool samplerOnly=false,bool playlistOnly=false);
     void startAudioSmoke();
     void startPlayback(){if(!engine->playing.load())perform(play);}
     void startTransportChecks(const juce::File&);
@@ -89,7 +113,7 @@ private:
                   inputModeSelect,monitorToggle,monitorLevelChange,inputAudioSettings,
                   renderSource,renderFormat,renderRate,renderBits,renderChannels,renderFull,renderRange,renderPunch,renderTail,renderNormalize,renderTarget,renderDither,renderIsolated,renderChoose,renderCancel,
                   markersOpen,markerAdd,sectionAdd,markerSelect,markerEdit,markerDelete,markerJump,markerPrevious,markerNext,markerLoop,markerClearLoop,markerExport,markerColour,markerHit,markerRail,
-                  humanize,quickQuantize,noteToolMode,noteToolCapture,noteToolGrid,noteToolValue,noteToolWindow,noteToolChords,noteToolSeed,noteToolReroll,noteToolPreview,noteToolReset,noteToolApply,noteToolCancel,commandSearch,paletteWindow,paletteClip,paletteTemplate,euclideanOpen,rhythmAdjust,rhythmNumber,rhythmRange,rhythmWrite,arpeggiatorOpen,arpDirection,arpRate,arpAdjust,arpNumber,arpRestart,notePresetsOpen,patternMakeUnique,patternSplitChannels,patternMergeLayers,patternClipMenu,patternMoveEarlier,patternMoveLater,patternDeleteUnused,waveEditMenu,waveCopy,waveCut,wavePaste,waveReplace,waveDuplicate,waveTrim,waveDelete,waveSilence,waveRedo,waveSliceMenu,waveSlice,waveDetect,waveClearMarks,waveSliceMarks,synthOpen,synthPresets,synthSave,synthLoad,synthPreview,synthTab,synthWave,synthValue,synthChannel,synthLibrarySave,synthLibraryImport,synthLibraryManage,chorusMix,chorusRate,chorusDepth,chorusDelay,chorusFeedback,chorusWidth,flangerMix,flangerRate,flangerDepth,flangerCentre,flangerFeedback,flangerWidth,phaserMix,phaserRate,phaserDepth,phaserCentre,phaserFeedback,phaserWidth,effectsChainMenu,effectsChainCopy,effectsChainPaste,effectsChainSave,effectsChainLoad,effectsChainReset,effectMoveEarlier,effectMoveLater,effectsFactoryRecall,analyzerOpen,analyzerMaster,analyzerChannel,analyzerFreeze,analyzerReset,analyzerBack,stereoOpen,stereoEnable,stereoMono,stereoSwap,stereoInvertLeft,stereoInvertRight,stereoReset,stereoWidth,stereoTrim,workspaceMenu,workspaceSave,workspaceFactory,workspaceRecall,interfaceScaleMenu,interfaceScale,controlToggle,typingMenu,typingSustainToggle,typingVelocitySet,typingVelocityEdit,typingOctaveSet,typingRecall,typingCaptureClear,typingTransposeSet,typingCaptureToggle,typingCaptureWindow,patternMergeSequence,patternDeleteUsed,patternColourMenu,patternColourSet,metronomeSettingsOpen,patternExtract,patternMergeOptions,sectionClipsOpen,waveResample,waveCancelConversion,lastAction };
+                  humanize,quickQuantize,noteToolMode,noteToolCapture,noteToolGrid,noteToolValue,noteToolWindow,noteToolChords,noteToolSeed,noteToolReroll,noteToolPreview,noteToolReset,noteToolApply,noteToolCancel,commandSearch,paletteWindow,paletteClip,paletteTemplate,euclideanOpen,rhythmAdjust,rhythmNumber,rhythmRange,rhythmWrite,arpeggiatorOpen,arpDirection,arpRate,arpAdjust,arpNumber,arpRestart,notePresetsOpen,patternMakeUnique,patternSplitChannels,patternMergeLayers,patternClipMenu,patternMoveEarlier,patternMoveLater,patternDeleteUnused,waveEditMenu,waveCopy,waveCut,wavePaste,waveReplace,waveDuplicate,waveTrim,waveDelete,waveSilence,waveRedo,waveSliceMenu,waveSlice,waveDetect,waveClearMarks,waveSliceMarks,synthOpen,synthPresets,synthSave,synthLoad,synthPreview,synthTab,synthWave,synthValue,synthChannel,synthLibrarySave,synthLibraryImport,synthLibraryManage,chorusMix,chorusRate,chorusDepth,chorusDelay,chorusFeedback,chorusWidth,flangerMix,flangerRate,flangerDepth,flangerCentre,flangerFeedback,flangerWidth,phaserMix,phaserRate,phaserDepth,phaserCentre,phaserFeedback,phaserWidth,effectsChainMenu,effectsChainCopy,effectsChainPaste,effectsChainSave,effectsChainLoad,effectsChainReset,effectMoveEarlier,effectMoveLater,effectsFactoryRecall,analyzerOpen,analyzerMaster,analyzerChannel,analyzerFreeze,analyzerReset,analyzerBack,stereoOpen,stereoEnable,stereoMono,stereoSwap,stereoInvertLeft,stereoInvertRight,stereoReset,stereoWidth,stereoTrim,workspaceMenu,workspaceSave,workspaceFactory,workspaceRecall,interfaceScaleMenu,interfaceScale,controlToggle,typingMenu,typingSustainToggle,typingVelocitySet,typingVelocityEdit,typingOctaveSet,typingRecall,typingCaptureClear,typingTransposeSet,typingCaptureToggle,typingCaptureWindow,patternMergeSequence,patternDeleteUsed,patternColourMenu,patternColourSet,metronomeSettingsOpen,patternExtract,patternMergeOptions,sectionClipsOpen,waveResample,waveCancelConversion,browserAsset,notePasteOriginal,notePasteStart,noteCopyToPattern,browserFilterOpen,browserFilterClear,projectArchiveExport,projectArchiveImport,projectArchiveCancel,harmonySettingsOpen,harmonyFitOpen,harmonyChordOpen,harmonyChoice,harmonyNumber,harmonyDirection,harmonySkip,versionsOpen,versionSaveNamed,versionCancelTask,shortcutsOpen,samplerTuningOpen,samplerDetect,samplerDetectCancel,playlistGroupOpen,playlistAll,playlistNone,playlistGroupDrag,playlistLasso,playlistLoopSelection,playlistLoopClear,playlistLoopDrag,audioCrossfadeOpen,audioFadesClear,playlistAudioTools,harmonyPresetsOpen,progressionOpen,progressionSettings,progressionExamples,openPreviousSave,recoveryRetentionOpen,recoveryCleanupReview,recoveryCleanupCancel,audioFadeCurvesOpen,grooveOpen,grooveSettingsOpen,grooveCapture,grooveStepEdit,grooveWindow,automationShapeOpen,automationGenerateOpen,editHistoryOpen,masterEffectsOpen,masterSoftClipToggle,masterDry,masterDelayReturn,masterDelayFeedback,masterInsertsOpen,masterStereoOpen,noteConditionOpen,dynamicsModeMenu,dynamicsRange,dynamicsHysteresis,dynamicsHold,dynamicsKnee,microTuningOpen,notePasteCursor,projectCommandsOpen,mixAnalysisOpen,mixAnalysisCancel,restorationOpen,restorationCancel,browserPreviewStop,referenceOpen,referenceCancel,transcriptionOpen,transcriptionCancel,spectralOpen,notationOpen,audioHistoryOpen,audioHistoryOff,audioTakeLimit,samplerToPlaylist,lastAction };
     enum MenuId { menuView=50000,menuMaximize=50100,menuClose=50200,menuInstrument=50300,menuSaveAs=50400,menuPattern=50500,menuMergePattern=50600,menuSequencePattern=50700,menuPatternColour=50800 };
     static_assert(lastAction<menuView);
     enum Pane { playlistPane=0,rackPane,pianoPane,mixerPane,channelPane,automationPane,effectsPane,wavePane,assetsPane,templatesPane,recordingPane,exportPane,markersPane,noteToolsPane,synthPane,paneCount };
@@ -103,9 +127,135 @@ private:
     juce::Result handleControlCommand(const juce::String&,const juce::var&,juce::var&);
     juce::var controlState()const;
     void runControlChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    bool startProjectArchive(const juce::File&,bool importing,uint64_t expectedRevision);
+    bool applyImportedArchive(const juce::File&,uint64_t expectedRevision);
+    void chooseProjectArchive(bool importing);
+    void finishProjectArchive();
+    void runProjectArchiveChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    std::unique_ptr<juce::FileChooser> archiveChooser;
+    std::thread archiveThread;
+    std::atomic<bool> archiveDone{false},archiveCancel{false};
+    bool archiveBusy=false,archiveImport=false,archiveSucceeded=false;
+    uint64_t archiveRevision=0;
+    juce::String archiveMessage;
+    juce::File archiveImportedFile;
+    struct VersionReview {ProjectVersion entry;Project project;juce::String token,comparison;uint64_t revision=0;};
+    std::thread versionThread;
+    std::atomic<bool> versionDone{false},versionCancel{false};
+    bool versionBusy=false,versionSucceeded=false,versionShowResult=true;
+    int versionTask=0;
+    uint64_t versionRevision=0,versionMenuSerial=0;
+    juce::String versionQuery,versionMessage;
+    juce::File versionSavedFile,lastVersionBackup;
+    std::vector<ProjectVersion> versionRows,versionWorkerRows;
+    std::shared_ptr<VersionReview> versionReview,versionWorkerReview;
+    bool startVersionSave(const juce::String& label={});
+    bool startVersionScan(bool showResult=true);
+    bool startVersionRead(const ProjectVersion&,bool showResult=true);
+    void finishVersionTask();
+    void showVersionMenu();
+    void findVersionDialog();
+    void nameVersionDialog();
+    void showVersionComparison(const std::shared_ptr<VersionReview>&);
+    bool restoreProjectVersion(const std::shared_ptr<VersionReview>&);
+    bool performVersionAction(int);
+    void runProjectVersionChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    ShortcutSettings shortcutSettings;
+    uint64_t shortcutRevision=0;
+    void restoreShortcutSettings();
+    bool applyShortcutSettings(const ShortcutSettings&,uint64_t,const juce::String&);
+    void showShortcutSettings();
+    bool dispatchShortcut(const juce::String&);
+    juce::String shortcutHint(const juce::String&)const;
+    juce::String shortcutLabel(const juce::String&,const juce::String&)const;
+    juce::String commandShortcutHint(int,int,const juce::String&)const;
+    void runShortcutTransportTick();
+    void runShortcutChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    struct SamplerContext {int track=-1;uint64_t revision=0;juce::File file;juce::String stamp;double start=0,end=0;const Sample* sample=nullptr;};
+    std::thread samplePitchThread;
+    std::atomic<bool> samplePitchDone{false},samplePitchCancel{false};
+    bool samplePitchBusy=false,samplePitchValid=false,samplePitchPresent=false;
+    SamplerContext samplePitchContext;
+    SamplePitch samplePitchResult;
+    juce::String samplePitchMessage;
+    std::optional<SamplerContext> samplerContext();
+    bool samplerContextCurrent(const SamplerContext&)const;
+    bool applySamplerTuning(const SamplerContext&,int,double);
+    void showSamplerTuning(const SamplerContext&,int,double,const juce::String& message={});
+    bool startSamplerPitch(bool present=true);
+    void finishSamplerPitch();
+    bool performSamplerTuningAction(int);
+    void runSamplerTuningChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void runSamplerTuningTransportTick();
+    std::set<juce::String> selectedPlaylistIds,playlistLassoBase;
+    juce::String playlistPrimaryId;
+    std::unique_ptr<Project> playlistDragSource,playlistDragCandidate;
+    PlaylistGroupStats playlistDragStats;
+    std::set<int> playlistDragIndices;
+    uint64_t playlistDragRevision=0;
+    int playlistDragPrimary=-1;
+    bool playlistDragCopy=false,playlistLassoAdd=false;
+    double playlistDragDelta=0;int playlistDragTrackDelta=0;
+    struct PlaylistClipboardClip {Clip clip;juce::String patternId,trackId,targetId;};
+    std::vector<PlaylistClipboardClip> playlistClipboard;
+    std::set<int> playlistSelection()const;
+    void setPlaylistSelection(const std::set<int>&,int primary=-1);
+    void reconcilePlaylistSelection();
+    juce::Rectangle<float> playlistClipBounds(const Clip&)const;
+    bool playlistMouseDown(const Hit&,const juce::MouseEvent&);
+    bool playlistMouseDrag(const juce::MouseEvent&);
+    bool playlistMouseUp(const juce::MouseEvent&);
+    void cancelPlaylistGesture();
+    bool commitPlaylistGroup(Project,const std::vector<int>&,int,const juce::String&);
+    bool editPlaylistGroupClipboard(int);
+    void deletePlaylistSelection();
+    void showPlaylistGroupDialog();
+    bool applyPlaylistGroup(const std::set<juce::String>&,uint64_t,double,bool,bool);
+    bool playlistLoopMouseDown(const Hit&,const juce::MouseEvent&);
+    bool playlistLoopMouseDrag(const juce::MouseEvent&);
+    bool playlistLoopMouseUp(const juce::MouseEvent&);
+    void cancelPlaylistLoopGesture();
+    bool applyPlaylistLoop(double,double,uint64_t);
+    void showAudioCrossfades();
+    void editAudioFadeCurves();
+    bool applyAudioFadeCurves(int,uint64_t,FadeCurve,FadeCurve);
+    void runAudioFadeCurveChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void runAudioFadeCurveTransportTick();
+    void showPlaylistAudioTools();
+    bool applyAudioCrossfades(const std::set<juce::String>&,uint64_t,bool clear,FadeCurve curve=FadeCurve::linear);
+    void runAudioCrossfadeChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void runAudioCrossfadeTransportTick();
+    void runPlaylistLoopChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void runPlaylistLoopTransportTick();
+    bool playlistLoopMoved=false,playlistLoopMenu=false;
+    double playlistLoopAnchor=0,playlistLoopStart=0,playlistLoopEnd=0;
+    uint64_t playlistLoopRevision=0;
+    void runPlaylistGroupChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void runPlaylistGroupTransportTick();
     Project project;
     Assets assets;
     std::unique_ptr<Engine> engine;
+    AudioHistory audioHistory;
+    HistoryOptions historyOptions;
+    std::atomic<double> historyRate{48000};
+    std::unique_ptr<HistorySaveTask> historyTask;
+    AudioHistorySnapshot historySnapshot;
+    std::unique_ptr<Sample> historyPreview;
+    juce::File historyFolder;
+    juce::String historyStamp,historyMessage;
+    bool historyReveal=false,historyOffPending=false;
+    void restoreAudioHistoryOptions();
+    void showAudioHistory();
+    bool startAudioHistory(const HistoryOptions&);
+    void stopAudioHistory();
+    bool freezeAudioHistory(bool reveal=true);
+    void finishAudioHistory();
+    void discardAudioHistory(bool keep=false);
+    bool auditionAudioHistory();
+    bool applyAudioHistory(int track,uint64_t expected);
+    void runAudioHistoryChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void runAudioHistoryTransportTick();
+    bool seedAudioHistoryFixture();
     Recorder recorder;
     std::atomic<int> activeInputs{0};
     std::atomic<int> activeOutputs{2};
@@ -144,7 +294,12 @@ private:
     double firstSoundBeat=-1;
     std::atomic<bool> recordDeviceStopped{false};
     juce::File takeFile;
-    bool audioRecordMode=false;
+    bool audioRecordMode=false;int audioTakeSeconds=120;
+    bool setAudioTakeLimit(int);
+    double availableTakeSeconds(double rate,double at)const;
+    void samplerAudioToPlaylist();
+    void runLongAudioChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void runLongAudioTransportTick();
     double takeBeat=0,takeTempo=118;
     int takeTrack=0;
     std::array<const Sample*,maxClips> clipSamples{};
@@ -158,8 +313,29 @@ private:
     void closeCommandPalette();
     void positionCommandPalette();
     void executePalette(const juce::String&);
-    std::deque<Project> undoStack,redoStack;
+    std::deque<HistorySnapshot> undoStack,redoStack;
+    uint64_t historyGeneration=0;
+    std::unique_ptr<HistoryBrowser> historyBrowser;
+    void showEditHistory();
+    void closeEditHistory();
+    void positionEditHistory();
+    bool restoreHistoryState(int,uint64_t expectedRevision,uint64_t expectedGeneration);
+    void runEditHistoryChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void runEditHistoryTransportTick();
     std::unique_ptr<juce::FileChooser> chooser;
+    std::unique_ptr<MixAnalysisTask> mixTask;
+    MixAnalysisReport mixReport;juce::var mixReportJson;
+    AssetFingerprints mixBaselineAssets;
+    uint64_t mixReportRevision=0;bool mixReportLive=false,mixApplying=false,mixShowResult=false;
+    juce::String mixExpectedHash,mixMessage;
+    void restoreMixAnalysis();
+    bool mixCanApply()const;
+    juce::var mixAnalysisState()const;
+    bool startMixAnalysis(uint64_t,bool applyLevel=false,bool reveal=false);
+    void finishMixAnalysis();
+    void showMixAnalysis();
+    void runMixAnalysisChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void runMixAnalysisTransportTick();
     std::thread exportThread;
     std::atomic<bool> exporting{false},exportDone{false},cancelExport{false};
     std::atomic<float> exportProgress{0};
@@ -171,7 +347,71 @@ private:
     bool performExportAction(int,int);
     void restoreExportSettings();
     void saveExportSettings();
-    bool dirty=false,recording=false,scaleGuide=true,audioEnabled=false,recoveryRestored=false;
+    void restoreStartupRecovery(bool);
+    bool restoreRecoveryFile(const juce::File&,bool checkpointCurrent);
+    void retireRecovery();
+    void showRecoveryRetention();
+    bool startRecoveryCleanup(bool automatic);
+    bool applyRecoveryReview(const std::shared_ptr<RecoveryCleanupPlan>&);
+    void finishRecoveryCleanup();
+    void cancelRecoveryCleanup();
+    void runRecoveryRetentionChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void runRecoveryRetentionTransportTick();
+    RecoveryRetentionPolicy retentionPolicy;
+    std::shared_ptr<RecoveryCleanupPlan> retentionReview,retentionWorkerPlan;
+    RecoveryCleanupResult retentionResult;
+    std::thread retentionThread;
+    std::atomic<bool> retentionCancel{false},retentionDone{false};
+    bool retentionBusy=false,retentionShowReview=false,retentionSucceeded=false;
+    int retentionTask=0;
+    juce::String retentionMessage;
+    bool startAutosave(const ProjectSaveControl* = nullptr);
+    bool finishAutosave(bool wait);
+    void synchronizeAutosave();
+    void tickAutosave();
+    void runAutosaveChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void runAutosaveTransportTick();
+    void releaseAutosaveVerification();
+    std::shared_ptr<AutosaveVerificationState> autosaveVerification;
+    void runPersistenceChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void runPersistenceTransportTick();
+    bool dirty=false,recording=false,audioEnabled=false,recoveryRestored=false;
+    ProgressionOptions progressionOptions;
+    void showProgressionSettings(bool style=false);
+    void showProgressionExamples();
+    bool acceptProgressionSettings(const ProgressionOptions&,uint64_t,uint64_t);
+    void paintProgressionControls(juce::Graphics&,juce::Rectangle<float>);
+    void runProgressionChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void runProgressionTransportTick();
+    HarmonyGuide harmonyGuide;
+    std::optional<HarmonyGuide> harmonyPresetGuide;
+    std::array<juce::String,3> selectedHarmonyPreset;
+    const HarmonyGuide& activeHarmonyGuide() const;
+    HarmonyPresetKind currentHarmonyPresetKind() const;
+    HarmonyPreset captureHarmonyPreset(const juce::String&,const juce::String&) const;
+    bool applyHarmonyPreset(const HarmonyPreset&,uint64_t,uint64_t);
+    bool storeHarmonyPreset(const HarmonyPreset&,bool replace,const juce::String& token={});
+    bool deleteHarmonyPreset(const juce::String&,const juce::String& token={});
+    void nameHarmonyPreset(HarmonyPreset,bool rename,const juce::String& token);
+    void showHarmonyPresets();
+    void runHarmonyPresetChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void runHarmonyPresetTransportTick();
+    void runProgressionPresetChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void runProgressionPresetTransportTick();
+    ScaleDirection scaleFitDirection=ScaleDirection::nearest;
+    ChordOptions chordOptions;
+    uint64_t harmonyGuideRevision=0,harmonyToolSerial=0;
+    bool setHarmonyGuide(const HarmonyGuide&,uint64_t,const juce::String& token={});
+    void showHarmonySettings();
+    bool harmonyToolActive()const;
+    bool harmonyContext(uint64_t,uint64_t)const;
+    bool acceptHarmonyChoice(int,int,uint64_t,uint64_t);
+    void showHarmonyChoice(int);
+    bool acceptHarmonyNumber(int,double,uint64_t,uint64_t);
+    void editHarmonyNumber(int);
+    void paintHarmonyTools(juce::Graphics&,juce::Rectangle<float>);
+    bool performHarmonyAction(int,int);
+    void runHarmonyChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
     NoteToolOptions noteToolOptions;
     bool noteToolBound=false,noteToolAudition=true,noteToolValid=false;
     RhythmOptions rhythmOptions;
@@ -205,6 +445,26 @@ private:
     void paintArpeggiator(juce::Graphics&,juce::Rectangle<float>);
     bool performArpAction(int,int);
     void setArpNumber(int,int);
+    GrooveSettings grooveSettings;
+    GrooveStats grooveStats;
+    juce::String selectedGroove,grooveName="Straight grid";
+    uint64_t grooveSerial=0;
+    bool grooveContext(uint64_t,uint64_t) const;
+    bool acceptGrooveSettings(const GrooveSettings&,uint64_t,uint64_t);
+    bool captureSourceGroove(double,double,int,uint64_t,uint64_t);
+    void showGrooveSettings();
+    void showGrooveCapture();
+    void editGrooveStep(int);
+    void paintGrooveControls(juce::Graphics&,juce::Rectangle<float>);
+    bool performGrooveAction(int,int);
+    GroovePreset captureGroovePreset(const juce::String&,const juce::String&) const;
+    bool applyGroovePreset(const GroovePreset&,uint64_t,uint64_t);
+    bool storeGroovePreset(const GroovePreset&,bool,const juce::String&);
+    bool deleteGroovePreset(const juce::String&,const juce::String&);
+    void nameGroovePreset(GroovePreset,bool,const juce::String&);
+    void showGroovePresets();
+    void runGrooveChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void runGrooveTransportTick();
     uint32_t& noteToolSeedValue(NoteToolMode);
     void paintRhythm(juce::Graphics&,juce::Rectangle<float>);
     bool performRhythmAction(int,int);
@@ -227,7 +487,7 @@ private:
     void paintNoteTools(juce::Graphics&,juce::Rectangle<float>);
     void noteToolSlider(juce::Graphics&,const juce::String&,juce::Rectangle<float>,int,const juce::String&);
     bool performNoteToolAction(int,int);
-    int page=0,selectedTrack=5,selectedNote=-1,trackScroll=0,octave=4;
+    int page=0,selectedTrack=5,selectedNote=-1,trackScroll=0,octave=3;
     int dragAction=0,dragData=0,dragExtra=0;
     float dragValue=0;
     juce::Point<float> dragOrigin;
@@ -259,7 +519,36 @@ private:
     juce::String workspaceSourceToken()const;
     void showInterfaceScaleMenu();
     void runWorkspaceChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
-    std::array<bool,4> browserExpanded{true,true,true,true};
+    std::array<bool,12> browserExpanded{true,true,true,true,false,false,false,false,false,false};
+    struct BrowserAsset {juce::String soundId,name;juce::File file;double start=0,end=0;bool loop=false,previewOnClick=false;int sampleRoot=60;double sampleTune=0;};
+    std::vector<BrowserAsset> browserAssets;
+    std::optional<BrowserAsset> browserDraggingAsset;
+    uint64_t browserDragRevision=0;
+    int browserDragTrack=0,browserTreeScroll=0,browserTreeMaximum=0;
+    juce::Rectangle<float> browserTreeRect;
+    SoundLibrary browserSoundLibrary;
+    juce::String browserLibraryStamp;
+    void paintFactoryBrowser(juce::Graphics&,juce::Rectangle<float>);
+    void refreshBrowserSounds();
+    void refreshSampleFavorites();
+    void showBrowserFilter();
+    bool setBrowserFilter(const juce::String&);
+    void showBrowserSampleMenu(const BrowserAsset&);
+    bool performBrowserSampleChoice(const BrowserAsset&,int,uint64_t,int,const juce::String&);
+    bool setSampleFavorite(const juce::File&,bool,const juce::String& expected={});
+    bool previewBrowserSample(const BrowserAsset&,bool original=false);
+    void showSamplePreviewSettings(const BrowserAsset&);
+    bool configureSamplePreview(const BrowserAsset&,const SamplePreviewOptions&,uint64_t,const juce::String&,const juce::String&,bool audition);
+    juce::File samplePreviewFile()const{return root.getChildFile("data/sample-preview.json");}
+    void runSamplePreviewChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void runSamplePreviewTransportTick();
+    juce::File sampleFavoritesFile()const{return root.getChildFile("data/sample-favorites.json");}
+    juce::StringArray sampleFavorites;
+    juce::String sampleFavoritesStamp,sampleFavoritesError,browserFilter;
+    void runSampleFavoritesChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    bool applyBrowserAsset(const BrowserAsset&,int track);
+    bool finishBrowserAssetGesture(const juce::MouseEvent&);
+    void runBrowserKeyboardChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
     std::array<const Sample*,maxTracks> previewSamples{};
     juce::Rectangle<float> dragPaneBounds,selectionBox;
     std::set<int> selectedNotes;
@@ -268,8 +557,22 @@ private:
     Clip clipClipboard;
     juce::String clipboardPatternId;
     bool clipboardHasClip=false;
-    double editCursorBeat=0;
+    double editCursorBeat=0,pianoNoteCursor=0;
     juce::String hoverHint;
+    juce::Point<float> lastEditorPointer{-1,-1};
+    juce::ModifierKeys lastEditorModifiers;
+    void updateEditorPointer(juce::Point<float>,juce::ModifierKeys);
+    juce::MouseCursor editorCursorFor(const Hit&,juce::Point<float>,juce::ModifierKeys)const;
+    bool applyPatternLength(int steps,uint64_t,const juce::String&);
+    void showProjectCommands(juce::String text={},juce::String error={});
+    void previewProjectCommands(const juce::String&,uint64_t);
+    bool applyProjectCommands(const juce::String&,uint64_t);
+    void runProjectCommandChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void runProjectCommandTransportTick();
+    void runPhysicalChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void runPhysicalTransportTick();
+    void runEditorTimingChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void runEditorTimingTransportTick();
     juce::Rectangle<float> rackRect,pianoRect,velocityRect,arrangeRect;
     juce::Rectangle<float> automationRect;
     juce::Rectangle<float> markerRailRect,markerListRect;
@@ -289,9 +592,32 @@ private:
     void runSectionClipChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
     int selectedPoint=-1;
     int selectedEffect=0;
+    bool masterEffectsView=false,masterInsertView=false;
+    bool editingMasterEffects()const{return masterEffectsView||masterInsertView;}
+    int effectTarget()const{return editingMasterEffects()?-1:selectedTrack;}
+    Track::Mixer& effectMixer(int target){return target<0?project.masterMixer:project.tracks[(size_t)target].mixer;}
+    const Track::Mixer& effectMixer(int target)const{return target<0?project.masterMixer:project.tracks[(size_t)target].mixer;}
+    void runMasterInsertTransportTick();
+    std::set<int> conditionSelection()const;
+    bool noteConditionContext(uint64_t,int,int,const std::set<int>&)const;
+    bool applyNoteCondition(int,int,uint64_t,int,int,const std::set<int>&);
+    void showNoteConditions();
+    void editNoteCondition(uint64_t,int,int,const std::set<int>&);
+    bool microTuningContext(uint64_t,int)const;
+    bool applyMicroTuning(const MicroTuning&,uint64_t,int);
+    void showMicroTuning();
+    void editMicroTuning(MicroTuning,uint64_t,int,int pitch=60);
+    void editEqualTuning(uint64_t,int);
+    void importMicroTuning(uint64_t,int);
+    void runMicroTuningTransportTick();
+    void runMicroTuningChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void runNoteConditionChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void runMasterInsertChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void paintMasterEffects(juce::Graphics&,juce::Rectangle<float>);
+    void runMasterProcessingChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
     double automationCursor=0;
     std::vector<AutomationPoint> automationClipboard;
-    juce::String status=L"Ready. Space to play. Z–M to play notes. Everything stays on your computer.";
+    juce::String status=L"Ready. Space to play. Z–/ and Q–] to play notes. Everything stays on your computer.";
     struct TypingHeld {int track=0,pitch=60;};
     std::map<int,TypingHeld> heldKeys;
     std::vector<TypingHeld> sustainedKeys;
@@ -306,6 +632,7 @@ private:
     void showTypingMenu();
     bool performTypingAction(int,int);
     bool typingKeyOn(int key,int pitch);
+    bool pianoPitchActive(int pitch)const;
     void typingKeyOff(int key);
     void releaseTypingNote(TypingHeld);
     void setTypingSustain(bool);
@@ -314,6 +641,8 @@ private:
     void runTypingChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
     std::map<int,std::pair<int,double>> recordedKeys;
     int mousePitch=-1,mousePitchTrack=0;
+    RecoveryWriter recoveryWriter;
+    juce::String autosaveError;
     int autosaveCounter=0;
     int runtimeCounter=0,audioSmokeFrames=0;
     uint64_t revision=0,autosavedRevision=0;
@@ -352,13 +681,15 @@ private:
     void chooseLibrarySoundFile(bool importing,const juce::String& id={});
     void runSoundLibraryChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
     bool performSynthAction(int,int);
-    bool applySynthPreset(const SynthPreset&,int track);
+    bool applySynthPreset(const SynthPreset&,int track,bool openEditor=true);
     void showSynthPresets();
     void chooseSynthFile(bool save);
     void paintSynth(juce::Graphics&,juce::Rectangle<float>);
     void editSynthValue(int);
     void showWavetableMenu();
     bool applyWavetableFamily(int,int,uint64_t);
+    void runAdditiveChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void runAdditiveTransportTick();
     void runWavetableChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
     bool changeSynthValue(int,double,bool checkpoint=true);
     void runSynthChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
@@ -377,6 +708,11 @@ private:
     void showModulationParameterMenu(int,int);
     void runModulationChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
     void editChorusValue(int);
+    bool applyDynamicsMode(DynamicsMode,int,uint64_t);
+    void showDynamicsModes();
+    void editDynamicsValue(int,int);
+    void runDynamicsChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void runDynamicsTransportTick();
     void showChorusParameterMenu(int,int);
     void runChorusChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
     bool analyzerView=false,analyzerFollowTrack=false,analyzerFrozen=false,analyzerWasActive=false;
@@ -449,19 +785,91 @@ private:
     juce::String waveEditError;
     double waveEditRate=0;
     int waveEditFirst=0,waveEditEnd=0;
+    RestorationOptions restorationOptions;
+    RestorationStats restorationStats;
+    SpectralImages restorationImages;
+    std::unique_ptr<RestorationTask> restorationTask;
+    const Sample* restorationPreview=nullptr;
+    juce::File restorationFile,restorationSource;
+    juce::String restorationSourceStamp,restorationOutputStamp,restorationMessage;
+    uint64_t restorationRevision=0;
+    int restorationFirst=0,restorationEnd=0;
+    bool restorationReveal=false;
+    void restoreRestorationOptions();
+    void showRestorationSettings();
+    void showRestorationReview();
+    bool beginRestoration(const RestorationOptions&,uint64_t expected,bool reveal=true);
+    void finishRestoration();
+    void discardRestoration(bool keep=false);
+    bool auditionRestoration(bool processed);
+    bool applyRestoration();
+    bool restorationCurrent()const;
+    void runRestorationChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void runRestorationTransportTick();
+    void runSpectralChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void runSpectralTransportTick();
+    std::unique_ptr<ReferenceTask> referenceTask;
+    ReferenceReport referenceReport;
+    juce::var referenceReportJson;
+    ReferenceOptions referenceOptions;
+    juce::File referenceSource;
+    const Sample* referenceMix=nullptr;const Sample* referenceAudio=nullptr;
+    uint64_t referenceRevision=0;
+    bool referenceReveal=false,referenceMatch=true,referenceAudition=false;
+    juce::String referenceMessage;
+    void restoreReferenceReport();
+    void chooseReferenceFile();
+    void showReferenceSettings();
+    void showReferenceComparison();
+    bool beginReference(const juce::File&,const ReferenceOptions&,uint64_t,bool reveal=true);
+    void finishReference();
+    void discardReference();
+    bool referenceCurrent()const;
+    bool auditionReference(bool reference);
+    void runReferenceChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void runReferenceTransportTick();
+    std::unique_ptr<TranscriptionTask> transcriptionTask;
+    MelodyTranscript transcription;
+    TranscriptionOptions transcriptionOptions;
+    juce::File transcriptionSource;
+    juce::String transcriptionHash,transcriptionStamp,transcriptionMessage;
+    uint64_t transcriptionWaveRevision=0,transcriptionProjectRevision=0;
+    int transcriptionFirst=0,transcriptionEnd=0,transcriptionTrack=7;
+    bool transcriptionReveal=false,transcriptionNoteAudition=false,transcriptionOriginalAudition=false;
+    void showTranscriptionSettings();
+    void showTranscriptionReview();
+    bool beginTranscription(const TranscriptionOptions&,int,uint64_t,uint64_t,bool reveal=true);
+    void finishTranscription();
+    void stopTranscriptionAudition(bool republish=true);
+    void discardTranscription();
+    bool transcriptionCurrent()const;
+    bool auditionTranscription(bool notes);
+    bool applyTranscription();
+    void runTranscriptionChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void runTranscriptionTransportTick();
+    ScoreClef notationClef=ScoreClef::automatic;
+    std::unique_ptr<juce::FileChooser> notationChooser;
+    void showNotation();
+    bool exportNotation(const juce::File&,const PatternScore&,bool svg,uint64_t expected);
+    void chooseNotationExport(const PatternScore&,bool svg,uint64_t expected);
+    void runNotationChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void runNotationTransportTick();
     std::vector<int> waveMarkers;
     TransientOptions transientOptions;
     std::vector<ProjectAsset> assetRows,assetWorkerRows;
     std::thread assetThread;
     std::atomic<bool> assetDone{false},assetCancel{false};
-    bool assetBusy=false,assetNeedsRefresh=true,assetRevealMissing=false;
+    bool assetBusy=false,assetNeedsRefresh=true,assetRevealMissing=false,assetLearnPending=true;
+    juce::String assetFingerprintInventory;
     uint64_t assetGeneration=0,assetTaskGeneration=0;
     juce::int64 assetLastCheck=0;
     int selectedAsset=-1,assetScroll=0;
     juce::String assetWorkerMessage,assetMessage;
     juce::Rectangle<float> assetListRect;
     void paintProjectAssets(juce::Graphics&,juce::Rectangle<float>);
-    void startAssetAudit(const juce::File& searchFolder={});
+    void startAssetAudit(const juce::File& searchFolder={},bool forceFingerprints=false);
+    void runAssetFingerprintChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void runAssetFingerprintTransportTick();
     void finishAssetAudit();
     bool performAssetAction(int,int);
     bool applyAssetReplacements(const std::vector<AssetReplacement>&);
@@ -481,12 +889,22 @@ private:
     bool startFromTemplate(const ProjectTemplate&);
     bool templateMatches(const ProjectTemplate&) const;
     bool performTemplateAction(int,int);
-    static bool isParameter(int action){return(action>=volumeDial&&action<=mixFader)||(action>=eqLow&&action<=reverbDamping)||(action>=chorusMix&&action<=chorusWidth)||(action>=flangerMix&&action<=phaserWidth)||(action>=stereoWidth&&action<=stereoTrim);}
+    static bool isParameter(int action){return(action>=dynamicsRange&&action<=dynamicsKnee)||(action>=volumeDial&&action<=mixFader)||(action>=eqLow&&action<=reverbDamping)||(action>=chorusMix&&action<=chorusWidth)||(action>=flangerMix&&action<=phaserWidth)||(action>=stereoWidth&&action<=stereoTrim)||(action>=masterDelayReturn&&action<=masterDelayFeedback);}
     void chooseRouting(bool sidechain);
     bool routeTrack(int source,int destination);
     void createAutomation(int action,int track);
     int automationTargetFor(int action,int track) const;
     float liveParameter(int action,int track,float fallback) const;
+    struct AutomationContext {uint64_t revision=0;int clip=-1;juce::String id;double length=0;std::vector<AutomationPoint> points;};
+    AutomationGenerator automationGenerator;
+    std::optional<AutomationContext> automationToolContext() const;
+    bool automationToolCurrent(const AutomationContext&) const;
+    bool applyAutomationPoints(const AutomationContext&,const std::vector<AutomationPoint>&,bool requireEndpoints=true);
+    void showAutomationShape();
+    void showAutomationGenerator();
+    bool performAutomationToolAction(int);
+    void runAutomationToolChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void runAutomationToolTransportTick();
     Clip* automationClip();
     bool automationMouseDown(const Hit&,const juce::MouseEvent&);
     void automationMouseDrag(const juce::MouseEvent&);
@@ -514,6 +932,11 @@ private:
     void modifyChannel(int,int);
     void deleteSelection();
     void editClipboard(int);
+    bool pasteCopiedNotes(NotePasteMode);
+    bool commitCopiedNotes(Project,int track,int first,int count);
+    void showCopyNotesToPattern();
+    bool acceptCopyNotesToPattern(const juce::String&,int,const std::set<int>&,uint64_t,int,int,bool,bool);
+    void runNoteClipboardChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
     void perform(int,int=0);
     void checkpoint();
     void changed(bool compile=true);

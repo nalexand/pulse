@@ -16,7 +16,7 @@ void Studio::showWaveResample(){
     }),true);
 }
 bool Studio::beginWaveResample(double targetRate,bool paste,bool replace){
-    if(waveEditBusy||recording||recorder.isActive()||!waveSample){status="Open audio and finish the take or conversion first.";return false;}
+    if(waveEditBusy||restorationTask||recording||recorder.isActive()||!waveSample){status="Open audio and finish the take, restoration or conversion first.";return false;}
     if(!std::isfinite(targetRate)||targetRate<8000||targetRate>192000||targetRate!=std::floor(targetRate)){status="Use a whole-number sample rate between 8000 and 192000 Hz.";return false;}
     double sourceRate=waveSample->sampleRate;
     if(!paste&&targetRate==sourceRate){status="Audio already uses that sample rate.";return false;}

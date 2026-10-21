@@ -3,6 +3,7 @@
 #include "Project.h"
 #include "Analyzer.h"
 #include "Metronome.h"
+#include "AudioHistory.h"
 #include <atomic>
 #include <map>
 
@@ -15,13 +16,14 @@ class Assets {
 public:
     Assets();
     const Sample* load(const juce::File&, juce::String& error);
+    uint64_t availableBytes()const{return maxDecodedAudioBytes-cachedBytes;}
 private:
     juce::AudioFormatManager formats;
     std::map<juce::String, std::unique_ptr<Sample>> samples;
     uint64_t cachedBytes = 0;
 };
 constexpr int maxEvents = 32768;
-struct Event { double beat = 0, length = .25; int track = 0, pitch = 60; float velocity = .8f, probability = 1; };
+struct Event { double beat = 0, length = .25; int track = 0, pitch = 60; float velocity = .8f, probability = 1; int conditionEvery=1,conditionStep=1,conditionPass=-1; };
 struct TrackSound {
     Instrument instrument = Instrument::kick;
     float volume = .7f, pan = 0, cutoff = 16000, drive = 0, send = 0, attack = .005f, release = .18f;
@@ -31,6 +33,8 @@ struct TrackSound {
     bool inputMuted=false,isBus=false;
     double sampleStart=0,sampleEnd=0;
     bool sampleLoop=false;
+    int sampleRoot=60;double sampleTune=0;
+    MicroTuning tuning;
     SynthPatch synth;
 };
 struct AudioRegion {
@@ -38,9 +42,11 @@ struct AudioRegion {
     int track = 0;
     double beat = 0, length = 0, offset = 0, fadeIn = 0, fadeOut = 0;
     float gain = 1;
+    FadeCurve fadeInCurve=FadeCurve::linear,fadeOutCurve=FadeCurve::linear;
 };
 struct AutomationRegion { int track = 0, target = 0, firstPoint = 0, pointCount = 0; double beat = 0, length = 0; };
 struct Playback {
+    bool songMode=false;uint64_t revisionTag=0;
     std::array<Event, maxEvents> events;
     std::array<TrackSound,maxTracks> tracks;
     std::array<AudioRegion,maxClips> audio;
@@ -50,7 +56,9 @@ struct Playback {
     int eventCount = 0, trackCount = 0, audioCount = 0;
     std::array<int,maxTracks> routingOrder{};
     double bpm = 118, length = 8,loopStart=0,loopEnd=-1;
-    float master = .8f, feedback = .3f;
+    float master = .8f, feedback = .3f, delayReturn = .5f;
+    bool masterSoftClip=false;
+    Track::Mixer masterMixer;
     bool loop = true, metronome = false;
 };
 juce::Result compilePlayback(const Project&, Assets&, const juce::File& base, Playback&, juce::String& warnings);
@@ -86,6 +94,7 @@ public:
     bool captureBlockValid()const{return takeReadGeneration.load()==takeGeneration.load();}
     // Audio-thread-only output from the last render call, relative to its block.
     int captureOffset=0,captureCount=0;
+    HistorySpan historySpan; // Last callback span, read only by the calling producer.
     Engine();
     void prepare(double rate);
     void render(float* left, float* right, int frames);
@@ -103,6 +112,7 @@ public:
     std::array<std::atomic<float>,maxTracks> gainReduction;
     std::array<std::array<std::atomic<float>,5>,maxTracks> automationReadout;
     std::atomic<float> masterAutomation{-1};
+    std::atomic<float> masterGainReduction{0};
     std::atomic<float> masterMeter {0}, cpuPercent {0};
     std::atomic<uint64_t> processedFrames {0};
     std::atomic<uint64_t> completedLoops{0};
@@ -112,7 +122,8 @@ public:
     bool audition(int track, int pitch, bool on, float velocity = .8f,float seconds=60);
     void stop();
     void start();
-    bool preview(const Sample*,double startSeconds=0,double endSeconds=0);
+    bool preview(const Sample*,double startSeconds=0,double endSeconds=0,float gain=.7f,double sourceBpm=0,bool repeat=false,bool align=false);
+    void cancelPreview(){previewGeneration.fetch_add(1,std::memory_order_acq_rel);}
     std::atomic<bool> previewPlaying{false};
     std::atomic<double> previewPosition{0};
 private:
@@ -129,16 +140,18 @@ private:
     std::atomic<uint32_t> metronomeConfig{1424}; // Classic, 100%, accented.
     float monitorGain=0;
     int monitorTrack=-1;
-    struct PreviewCommand { const Sample* sample=nullptr; double start=0,end=0; };
+    struct PreviewCommand { const Sample* sample=nullptr; double start=0,end=0; uint64_t generation=0;float gain=.7f;double sourceBpm=0;bool repeat=false,align=false; };
+    std::atomic<uint64_t> previewGeneration{0};
+    uint64_t previewSourceGeneration=0;
     std::array<PreviewCommand,32> previewCommands;
     std::atomic<unsigned> previewWrite{0},previewRead{0};
     const Sample* previewSource=nullptr;
-    double previewFrame=0,previewEnd=0;
+    double previewFrame=0,previewEnd=0,previewStart=0,previewBpm=0,previewWait=0;float previewGain=.7f;bool previewRepeat=false;
     struct Voice {
         bool active = false, released = false;
         int track = 0, pitch = 60;
         int scheduledEvent = -1;
-        double sourceBeat = 0;
+        double sourceBeat = 0, tuningCents=0;
         double phase = 0, phase2 = 0, age = 0, gate = 0, releasedAt = 0, samplePosition = 0;
         float velocity = 1, lastNoise = 0, right = 0;
         uint32_t random = 1234;
@@ -156,14 +169,15 @@ private:
         juce::Reverb reverb;
         StereoChorus chorus;
         StereoUtility stereo;
+        PeakDynamics dynamics;
         StereoFlanger flanger;
         StereoPhaser phaser;
         float envelope=0,attack=0,release=0,reduction=0;
     };
-    std::array<ChannelFX,maxTracks> effects;
+    std::array<ChannelFX,maxTracks+1> effects; // Final slot is the independent Master chain.
     std::array<float,maxTracks> detectorLast{};
     void configureEffects();
-    void processEffects(int track,const TrackSound&,float& left,float& right);
+    void processEffects(int track,const Track::Mixer&,float& left,float& right);
     std::vector<float> delayL, delayR;
     size_t delayPos = 0;
     double sampleRate = 48000, beat = 0;

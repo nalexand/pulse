@@ -71,7 +71,7 @@ Result spliceWave(const AudioBuffer<float>& audio,double rate,int first,int end,
 }
 Result sliceWaveToPlaylist(const Project& project,int track,const String& path,double rate,int frames,int first,int end,double step,double at,Project& output){
     if(track<0||track>=(int)project.tracks.size()||project.tracks[(size_t)track].isBus)return Result::fail("Select a source channel before slicing.");
-    if(path.isEmpty()||!File::isAbsolutePath(path)||!std::isfinite(rate)||rate<8000||rate>192000||frames<1||frames>rate*120||first<0||end>frames||end<=first)return Result::fail("Open a valid local audio selection first.");
+    if(path.isEmpty()||!File::isAbsolutePath(path)||!std::isfinite(rate)||rate<8000||rate>192000||frames<1||frames>rate*maxAudioSeconds||first<0||end>frames||end<=first)return Result::fail("Open a valid local audio selection first.");
     if(!std::isfinite(step)||step<.0625||step>64||!std::isfinite(project.bpm)||project.bpm<30||project.bpm>300||!std::isfinite(at)||at<0||at+(end-first)/rate*project.bpm/60>4096)return Result::fail("Slices must fit inside 0-4096 beats with a valid tempo and grid.");
     double stride=rate*60/project.bpm*step;int count=(int)std::ceil((end-first)/stride);
     // Rounding can leave the last boundary at end: never create a zero-frame tail.
@@ -82,7 +82,7 @@ Result sliceWaveToPlaylist(const Project& project,int track,const String& path,d
 }
 Result sliceWaveFramesToPlaylist(const Project& project,int track,const String& path,double rate,int frames,const std::vector<int>& boundaries,double at,Project& output){
     if(track<0||track>=(int)project.tracks.size()||project.tracks[(size_t)track].isBus)return Result::fail("Select a source channel before slicing.");
-    if(path.isEmpty()||!File::isAbsolutePath(path)||!std::isfinite(rate)||rate<8000||rate>192000||frames<1||frames>rate*120||boundaries.size()<2||boundaries.size()>maxClips+1)return Result::fail("Use between one and 512 valid audio slices.");
+    if(path.isEmpty()||!File::isAbsolutePath(path)||!std::isfinite(rate)||rate<8000||rate>192000||frames<1||frames>rate*maxAudioSeconds||boundaries.size()<2||boundaries.size()>maxClips+1)return Result::fail("Use between one and 512 valid audio slices.");
     for(size_t i=0;i<boundaries.size();++i)if(boundaries[i]<0||boundaries[i]>frames||(i>0&&boundaries[i]<=boundaries[i-1]))return Result::fail("Slice boundaries must be ordered, unique audio frames.");
     if(!std::isfinite(project.bpm)||project.bpm<30||project.bpm>300||!std::isfinite(at)||at<0||at+(boundaries.back()-boundaries.front())/rate*project.bpm/60>4096)return Result::fail("Slices must fit inside 0-4096 beats at a valid tempo.");
     if(project.clips.size()+boundaries.size()-1>maxClips)return Result::fail("Slicing exceeds the 512-clip Playlist limit.");

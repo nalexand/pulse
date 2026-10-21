@@ -3,8 +3,12 @@
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <array>
 #include "Wavetable.h"
+#include "Additive.h"
+#include "PhysicalModel.h"
 namespace pulse {
 struct SynthPatch {
+    PhysicalSettings physical;
+    HarmonicLevels harmonics=defaultHarmonics;
     int wave1=2,wave2=3,coarse=0,table=0;
     float tablePosition=0,tableEnv=0,tableDecay=1,tableLfo=0;
     float mix=.35f,detune=7,pulse=.5f,sub=.12f,noise=0;
@@ -14,12 +18,12 @@ struct SynthPatch {
 };
 juce::Result validateSynthPatch(const SynthPatch&);
 juce::var synthPatchToJson(const SynthPatch&);
-juce::Result synthPatchFromJson(const juce::var&,SynthPatch&,bool requireWavetable=false);
+juce::Result synthPatchFromJson(const juce::var&,SynthPatch&,bool requireWavetable=false,bool requireAdditive=false,bool requirePhysical=false);
 const char* synthWaveName(int);
 // Fixed storage, no allocation/locks/file access in the voice render path.
 class SynthVoice {
 public:
-    void start(int pitch,double rate,uint32_t seed);
+    void start(int pitch,double rate,uint32_t seed,double tuningCents=0);
     float process(const SynthPatch&,int engine,bool gate,float attack,float release);
     bool active()const{return alive;}
 private:
@@ -31,6 +35,10 @@ private:
     const WavetableBank* tables=nullptr;
     double tablePosition=0,tableTarget=0,tableSmoothing=0;
     bool lastWavetable=false;
+    bool lastAdditive=false;
+    PhysicalVoice physical;
+    HarmonicLevels harmonics=defaultHarmonics;
+    double harmonicGain=1;
     bool alive=false,wasGate=true,lastFm=false;uint32_t random=12345;
 };
 }

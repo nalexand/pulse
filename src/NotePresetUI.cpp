@@ -24,6 +24,7 @@ void Studio::nameNotePreset(NotePreset p,bool rename){
     dialog->enterModalState(true,ModalCallbackFunction::create([safe,dialog,p,rename](int result)mutable{if(!safe||result!=1||safe->recording)return;p.name=dialog->getTextEditorContents("name").trim();safe->storeNotePreset(p,rename);}),true);
 }
 void Studio::showNotePresets(){
+    if(harmonyToolActive()){showHarmonyPresets();return;}
     auto mode=noteToolOptions.mode;auto factories=factoryNotePresets(mode);std::vector<NotePreset> rows;auto loaded=loadNotePresets(root.getChildFile("data/note-tool-presets.json"),rows);if(loaded.failed())status=loaded.getErrorMessage();
     std::vector<NotePreset> personal;for(auto& p:rows)if(p.mode==mode)personal.push_back(p);std::sort(personal.begin(),personal.end(),[](const NotePreset& a,const NotePreset& b){return a.name.compareIgnoreCase(b.name)<0;});
     auto found=std::find_if(personal.begin(),personal.end(),[&](const NotePreset& p){return p.id==selectedNotePreset[(size_t)mode];});bool selected=found!=personal.end();NotePreset current=selected?*found:NotePreset{};

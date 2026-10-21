@@ -21,19 +21,48 @@ static void expect(bool value,const char* name){++checks;if(!value){++failures;s
 static std::unique_ptr<Engine> makeEngine(const Project& p,Assets& assets,const File& root){auto engine=std::make_unique<Engine>();String warnings;expect(compilePlayback(p,assets,root,engine->exchange.beginWrite(),warnings).wasOk(),"compile playback");engine->exchange.publish();engine->prepare(48000);engine->playing.store(true);return engine;}
 static AudioBuffer<float> render(const Project& p,Assets& assets,const File& root,int frames,int block=512){auto e=makeEngine(p,assets,root);AudioBuffer<float> out(2,frames);for(int pos=0;pos<frames;pos+=block){int n=jmin(block,frames-pos);e->render(out.getWritePointer(0,pos),out.getWritePointer(1,pos),n);}return out;}
 #include "NotePresetChecks.h"
+#include "GrooveChecks.h"
+#include "AutomationToolChecks.h"
+#include "EditHistoryChecks.h"
+#include "AssetFingerprintChecks.h"
+#include "MasterProcessingChecks.h"
+#include "MasterInsertChecks.h"
+#include "DynamicsChecks.h"
+#include "NoteConditionChecks.h"
 #include "PatternToolChecks.h"
+#include "NoteClipboardChecks.h"
+#include "HarmonyChecks.h"
 #include "PatternBankChecks.h"
 #include "WaveToolChecks.h"
 #include "ResamplingChecks.h"
 #include "TransientChecks.h"
 #include "SynthChecks.h"
 #include "SoundLibraryChecks.h"
+#include "SampleFavoritesChecks.h"
+#include "SamplePreviewChecks.h"
+#include "ReferenceComparisonChecks.h"
+#include "AudioToNotesChecks.h"
+#include "ProjectArchiveChecks.h"
+#include "ProjectVersionChecks.h"
+#include "ShortcutChecks.h"
+#include "SamplerTuningChecks.h"
+#include "MicroTuningChecks.h"
+#include "PatternTimelineChecks.h"
 #include "ChorusChecks.h"
 #include "ModulationChecks.h"
 #include "EffectChainChecks.h"
 #include "AnalyzerChecks.h"
 #include "StereoChecks.h"
 #include "WavetableChecks.h"
+#include "AdditiveChecks.h"
+#include "PhysicalModelChecks.h"
+#include "ProjectCommandChecks.h"
+#include "MixAnalysisChecks.h"
+#include "RestorationChecks.h"
+#include "SpectralChecks.h"
+#include "NotationChecks.h"
+#include "AudioHistoryChecks.h"
+#include "LongAudioChecks.h"
 #include "WorkspaceChecks.h"
 #include "ControlChecks.h"
 #include "TypingChecks.h"
@@ -42,9 +71,25 @@ static AudioBuffer<float> render(const Project& p,Assets& assets,const File& roo
 #include "SequenceChecks.h"
 #include "PatternSelectionChecks.h"
 #include "SectionClipChecks.h"
+#include "PlaylistGroupChecks.h"
+#include "PlaylistLoopChecks.h"
+#include "AudioCrossfadeChecks.h"
+#include "AudioFadeCurveChecks.h"
+#include "HarmonyPresetChecks.h"
+#include "ProgressionChecks.h"
+#include "PersistenceChecks.h"
+#include "RecoveryWriterChecks.h"
+#include "RecoveryRetentionChecks.h"
 int main(int argc,char** argv){
+    if(argc>1&&String::fromUTF8(argv[1])=="--asset-search-probe")return assetSearchProbe(argc,argv);
+    if(argc>1&&String::fromUTF8(argv[1])=="--retention-probe")return retentionProbe(argc,argv);
+    if(argc>1&&String::fromUTF8(argv[1])=="--persistence-probe")return persistenceProbe(argc,argv);
     testTyping(argc>1?File(String::fromUTF8(argv[1])):File::getCurrentWorkingDirectory());
     File root=argc>1?File(String::fromUTF8(argv[1])):File::getCurrentWorkingDirectory().getChildFile("test-output");root.createDirectory();
+    testPersistence(root);
+    testRecoveryWriter(root);
+    testRecoveryRetention(root);
+    testShortcuts(root);
     Assets assets;auto demo=demoProject();
     auto projectFile=root.getChildFile("roundtrip.pulse");expect(saveProject(demo,projectFile).wasOk(),"atomic project save");Project loaded;
     expect(loadProject(projectFile,loaded).wasOk(),"project reload");expect(JSON::toString(projectToJson(demo))==JSON::toString(projectToJson(loaded)),"all project data roundtrips");
@@ -217,7 +262,7 @@ int main(int argc,char** argv){
     auto changedStarter=danceTemplate;changedStarter.patterns[0].lanes[0].clear();Project freshStarter;loadProjectTemplate(starterTemplates[1],freshStarter);expect(!freshStarter.patterns[0].lanes[0].empty(),"template instances do not share mutable note data");
     ProjectTemplate unknownTemplate;unknownTemplate.builtIn=true;unknownTemplate.id="builtin:unknown";auto beforeUnknown=JSON::toString(projectToJson(freshStarter));expect(loadProjectTemplate(unknownTemplate,freshStarter).failed()&&beforeUnknown==JSON::toString(projectToJson(freshStarter)),"unknown template leaves target project intact");
     auto templateSource=repair;templateSource.notes="Composition notes";templateSource.tracks[0].mixer.eq=true;templateSource.tracks[0].mixer.low=3;templateSource.patterns[0].lanes[3].push_back({0,.25,39,.8f});
-    auto library=root.getChildFile("template-library");ProjectTemplate savedTemplate;auto sourceTemplateJson=JSON::toString(projectToJson(templateSource));auto sourceSampleHash=SHA256(replacementTone).toHexString();
+    auto library=root.getChildFile("template-library-"+Uuid().toString());ProjectTemplate savedTemplate;auto sourceTemplateJson=JSON::toString(projectToJson(templateSource));auto sourceSampleHash=SHA256(replacementTone).toHexString();
     expect(saveProjectTemplate(templateSource,root,library,"  ../My kit: template  ","A local reusable session",TemplateContent::complete,savedTemplate).wasOk(),"save complete personal template with collected samples");
     expect(savedTemplate.directory.getParentDirectory()==library&&savedTemplate.directory.getFileName().length()==32&&savedTemplate.name=="../My kit: template","template display names cannot select output paths");expect(sourceTemplateJson==JSON::toString(projectToJson(templateSource))&&SHA256(replacementTone).toHexString()==sourceSampleHash,"saving template preserves source session and sample bytes");
     expect(savedTemplate.directory.getChildFile("Assets").getNumberOfChildFiles(File::findFiles,"*.wav")==1,"template asset collection deduplicates identical samples");ProjectTemplate rereadTemplate;expect(readProjectTemplate(savedTemplate.directory,rereadTemplate).wasOk()&&rereadTemplate.name==savedTemplate.name&&rereadTemplate.notes==1,"template metadata roundtrips with useful content counts");
@@ -417,6 +462,8 @@ int main(int argc,char** argv){
     }
     testNotePresets(root);
     testPatternTools(root,assets);
+    testNoteClipboard(root,assets);
+    testHarmony(root,assets);testProgressions(root,assets);
     testPatternBank(root,assets);
     testSequenceTools(root,assets);
     testPatternSelection(root,assets);
@@ -428,13 +475,23 @@ int main(int argc,char** argv){
     testTransients(root,assets);
     testSynths(root,assets);
     testSoundLibrary(root,assets);
+    testSampleFavorites(root);testSamplePreview(root,assets);testReferenceComparison(root,assets);testAudioToNotes(root,assets);
+    testProjectArchives(root,assets);
+    testProjectVersions(root,assets);
+    testPlaylistGroups(root,assets);
+    testPlaylistLoopRanges(root,assets);
+    testAudioCrossfades(root,assets);
+    testAudioFadeCurves(root,assets);
+    testHarmonyPresets(root);
+    testSamplerTuning(root,assets);testMicroTuning(root,assets);testPatternTimeline();
     testWorkspaces(root);
     testControl(root);
-    testChorus(root,assets);
+    testDynamics(root,assets);testNoteConditions(root,assets);testMasterProcessing(root,assets);testMasterInserts(root,assets);testChorus(root,assets);
     testModulation(root,assets);
     testEffectChains(root,assets);
     testAnalyzer(root,assets);
     testStereo(root,assets);
-    testWavetables(root,assets);
+    testGrooves(root,assets);testAutomationTools(root,assets);testEditHistory();testAssetFingerprints(root,assets);
+    testWavetables(root,assets);testAdditive(root,assets);testPhysicalModel(root,assets);testProjectCommands(root,assets);testMixAnalysis(root,assets);testRestoration(root);testSpectral(root);testNotation(root);testAudioHistory(root,assets);testLongAudio(root);
     std::cout<<checks<<" checks, "<<failures<<" failures\n";return failures==0?0:1;
 }

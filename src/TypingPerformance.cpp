@@ -5,6 +5,12 @@
 
 namespace pulse {
 using namespace juce;
+int typingKeyOffset(int keyCode,juce_wchar textCharacter){
+    auto key=CharacterFunctions::toLowerCase((juce_wchar)keyCode);
+    if(keyCode<32||keyCode>126)key=CharacterFunctions::toLowerCase(textCharacter);
+    int offset=String("zsxdcvgbhnjm,l.;/").indexOfChar(key);if(offset>=0)return offset;
+    offset=String("q2w3er5t6y7ui9o0p[=]").indexOfChar(key);return offset>=0?offset+12:-1;
+}
 Result loadTypingSettings(const File& file,TypingSettings& output){
     if(!file.existsAsFile())return Result::ok();
     if(file.getSize()>4096)return Result::fail("Typing preferences are too large.");

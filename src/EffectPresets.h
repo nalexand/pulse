@@ -10,4 +10,7 @@ juce::var effectChainToJson(const EffectChainPreset&);
 juce::Result effectChainFromJson(const juce::var&,EffectChainPreset&);
 juce::Result saveEffectChain(const EffectChainPreset&,const juce::File&);
 juce::Result loadEffectChain(const juce::File&,EffectChainPreset&);
+juce::Result validateMasterEffects(const Track::Mixer&);
+juce::var masterEffectsToJson(const Track::Mixer&);
+juce::Result masterEffectsFromJson(const juce::var&,Track::Mixer&);
 }

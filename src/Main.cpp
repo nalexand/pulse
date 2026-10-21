@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
+#include "Version.h"
 #include "StudioViewport.h"
 
 class PulseApplication final : public juce::JUCEApplication {
 public:
     // Share single-instance and recovery protocols with schema-13 releases.
     const juce::String getApplicationName() override { return "Pulse Studio 0.29"; }
-    const juce::String getApplicationVersion() override { return "0.37.0"; }
+    const juce::String getApplicationVersion() override { return pulse::appVersion; }
     bool moreThanOneInstanceAllowed() override {
         auto args=getCommandLineParameters();
         return args.contains("--diagnose")||args.contains("--transport-checks")||args.contains("--request-update")||args.contains("--preview")||args.contains("--editor-checks")||args.contains("--audio-smoke")||args.contains("--window-checks")||args.contains("--control-session");
@@ -33,7 +34,7 @@ public:
         }
         for (int i=0;i<args.size()-1;++i) if (args[i]=="--editor-checks") {
             pulse::Studio tester(root,false);tester.setSize(1440,940);
-            if(!tester.runEditorChecks(juce::File(args[i+1].unquoted()),args.contains("--typing-only"),args.contains("--arrangement-only"),args.contains("--appearance-only"),args.contains("--selection-only"),args.contains("--sections-only"),args.contains("--resampling-only")))setApplicationReturnValue(1);
+            if(!tester.runEditorChecks(juce::File(args[i+1].unquoted()),args.contains("--typing-only"),args.contains("--arrangement-only"),args.contains("--appearance-only"),args.contains("--selection-only"),args.contains("--sections-only"),args.contains("--resampling-only"),args.contains("--browser-keyboard-only"),args.contains("--clipboard-only"),args.contains("--samples-only"),args.contains("--archives-only"),args.contains("--harmony-only"),args.contains("--versions-only"),args.contains("--shortcuts-only"),args.contains("--sampler-only"),args.contains("--playlist-only")))setApplicationReturnValue(1);
             quit();return;
         }
         for(int i=0;i<args.size()-1;++i)if(args[i]=="--window-checks"){
@@ -51,15 +52,16 @@ public:
         if(window){if(commandLine.contains("--enable-control"))window->studio()->setLocalControlEnabled(true);window->setVisible(true);window->toFront(true);if(!juce::Component::getCurrentlyModalComponent())window->studio()->grabKeyboardFocus();if(commandLine.contains("--play"))window->studio()->startPlayback();}
     }
     void systemRequestedQuit() override {
-        if (!window || !window->studio()->isDirty()) { quit(); return; }
-        juce::AlertWindow::showAsync(juce::MessageBoxOptions().withIconType(juce::MessageBoxIconType::QuestionIcon)
-            .withTitle("Close Pulse Studio?").withMessage("Your latest work has a local recovery copy. Save your project before closing to choose a permanent file.")
-            .withButton("Keep working").withButton("Close with recovery"),[](int result) { if (result==0) juce::JUCEApplication::getInstance()->quit(); });
+        if (!window || !window->studio()->requiresRecoveryOnClose()) { quit(); return; }
+        auto* dialog=new juce::AlertWindow("Close Pulse Studio?","Close with recovery writes and verifies your latest work before exiting. If saving recovery fails, the app stays open. Save your project to choose a permanent file.",juce::MessageBoxIconType::QuestionIcon,window.get());
+        dialog->addButton("Keep working",0,juce::KeyPress(juce::KeyPress::escapeKey),juce::KeyPress(juce::KeyPress::returnKey));
+        dialog->addButton("Close with recovery",1);
+        dialog->enterModalState(true,juce::ModalCallbackFunction::create([safe=juce::Component::SafePointer<pulse::Studio>(window->studio())](int result){if(result==1&&safe){if(safe->saveRecoveryForClose())juce::JUCEApplication::getInstance()->quit();else juce::AlertWindow::showMessageBoxAsync(juce::MessageBoxIconType::WarningIcon,"Recovery could not be saved","The app remains open. Apply or cancel any note preview, then save your project to a writable location before closing.");}}),true);
     }
 private:
     class Window final : public juce::DocumentWindow,private juce::Timer {
     public:
-        explicit Window(const juce::File& root,bool resume=false,bool audio=true):DocumentWindow("Pulse Studio 0.37.0",juce::Colour(0xff343b3f),allButtons) {
+        explicit Window(const juce::File& root,bool resume=false,bool audio=true):DocumentWindow(juce::String("Pulse Studio ")+pulse::appVersion,juce::Colour(0xff343b3f),allButtons) {
             setUsingNativeTitleBar(true);host=new pulse::StudioViewport(root,audio,resume);setContentOwned(host,false);setResizable(true,false);
             studio()->fitMainWindow=[this]{if(isFullScreen())setFullScreen(false);fitToDesktop();};
             fitToDesktop(true);setVisible(true);fitToDesktop();studio()->grabKeyboardFocus();startTimer(1000);

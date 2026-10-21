@@ -6,11 +6,12 @@ using namespace juce;
 void Studio::restoreInputSettings(){
     inputMonitor.store(false);auto file=root.getChildFile("data/input-audio.json");if(!file.existsAsFile()||file.getSize()>4096)return;
     auto value=JSON::parse(file.loadFileAsString());if(!value.isObject()||(int)value["schema"]!=1)return;
+    if(value["takeSeconds"].isInt()){int seconds=(int)value["takeSeconds"];if(seconds==120||seconds==300||seconds==600||seconds==1200)audioTakeSeconds=seconds;}
     if(value.hasProperty("mode")){int mode=(int)value["mode"];if(mode>=0&&mode<=2)inputMode.store(mode);}
     if(value.hasProperty("monitorLevel")){float level=(float)value["monitorLevel"];if(std::isfinite(level)&&level>=0&&level<=1)monitorLevel.store(level);}
 }
 void Studio::saveInputSettings(){
-    auto* object=new DynamicObject();object->setProperty("schema",1);object->setProperty("mode",inputMode.load());object->setProperty("monitorLevel",monitorLevel.load());
+    auto* object=new DynamicObject();object->setProperty("schema",1);object->setProperty("takeSeconds",audioTakeSeconds);object->setProperty("mode",inputMode.load());object->setProperty("monitorLevel",monitorLevel.load());
     TemporaryFile temporary(root.getChildFile("data/input-audio.json"));if(!temporary.getFile().replaceWithText(JSON::toString(var(object),false))||!temporary.overwriteTargetFileWithTemporary())status="Input settings could not be saved locally.";
 }
 Engine::TakePlan Studio::recordingPlan(bool keyboard)const{
@@ -37,6 +38,8 @@ void Studio::paintRecording(Graphics& g,Rectangle<float> r){
     Colour text(0xffd9ddde),muted(0xffa5b0b2),accent(0xffb8c997),orange(0xffe3aa63);g.setColour(Colour(0xff394349));g.fillRect(r);float x=r.getX()+14,y=r.getY()+12;auto& options=project.recording;
     button(g,"TAP",{x,y,132,68},tapTempoAction,0,false,true);button(g,"Reset taps",{x,y+76,132,25},tapReset);
     label(g,String(project.bpm,1)+" BPM",{x+150,y+4,200,35},25,text,true);label(g,"Tap a steady beat",{x+150,y+44,170,22},12,muted);button(g,"Metronome sound...",{x+330,y+43,153,25},metronomeSettingsOpen);
+    button(g,audioHistory.active()?"Input history ON: "+String(audioHistory.frames()/historyRate.load(),1)+" s":"Input history...",{x+150,y+78,260,25},audioHistoryOpen,0,audioHistory.active());
+    button(g,"Audio limit: "+String(audioTakeSeconds/60)+" min...",{x+330,y+4,153,28},audioTakeLimit);
     label(g,"Count-in before recording",{x,y+122,220,23},12,text,true);
     for(int i=0;i<3;++i)button(g,i==0?"Off":String(i)+" bar"+(i==1?"":"s"),{x+225+i*81,y+121,75,25},countInSelect,i,options.countInBars==i);
     button(g,"Punch recording",{x,y+164,153,28},punchToggle,0,options.punch);button(g,"Set range...",{x+164,y+164,112,28},punchRange);
@@ -58,7 +61,7 @@ void Studio::paintRecording(Graphics& g,Rectangle<float> r){
     label(g,"Use headphones. Monitor level and mixer effects do not change the dry WAV take.",{x,y+507,r.getWidth()-28,22},11,muted);
     String phase=recording?(engine->countInRemaining.load()>0?"Count-in: "+String(engine->countInRemaining.load())+" beats left":engine->captureReady()?"Recording":"Pre-roll / waiting for punch-in"):"Ready: choose NOTES or AUDIO in the toolbar, then REC.";
     label(g,phase,{x,r.getBottom()-58,r.getWidth()-28,23},13,recording?orange:accent,true);
-    label(g,"Audio captures only the range. Typing punch records the active pattern. Space cancels or finishes.",{x,r.getBottom()-31,r.getWidth()-28,22},10,muted);
+    label(g,"Audio ignores pattern length; optional punch/selected time limit bounds the take. NOTES records patterns.",{x,r.getBottom()-31,r.getWidth()-28,22},10,muted);
 }
 bool Studio::performRecordingAction(int action,int data){
     if(action<recordingOpen||action>inputAudioSettings)return false;if(action==recordingOpen){showPane(recordingPane);return true;}

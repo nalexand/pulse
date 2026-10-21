@@ -3,7 +3,7 @@
 #include "Project.h"
 #include <set>
 namespace pulse {
-enum class NoteToolMode { quantize,humanize,euclidean,arpeggiator };
+enum class NoteToolMode { quantize,humanize,euclidean,arpeggiator,fitScale,buildChord,buildProgression,groove };
 struct NoteToolOptions {
     NoteToolMode mode=NoteToolMode::quantize;
     double grid=.25,positionStrength=1,lengthStrength=0,swing=0,window=.125;
