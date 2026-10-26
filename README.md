@@ -1,6 +1,6 @@
 # Pulse Studio DAW
 
-<img width="2260" height="1078" alt="image" src="https://github.com/nalexand/pulse/blob/main/pulse_studio.jpg" />
+<img width="2559" height="1525" alt="pulse_studio_03" src="https://github.com/user-attachments/assets/d9cc2d59-3e3b-45cf-8e1d-9778c2b56572" />
 
 
 A native, fully offline Windows music workstation with a familiar FL Studio–style
