@@ -12,11 +12,11 @@ Result validateClips(const Project& p,int& automation,int& points){
     automation=points=0;
     for(const auto& c:p.clips){
         if(!validFadeCurve(c.fadeInCurve)||!validFadeCurve(c.fadeOutCurve))return Result::fail("Invalid audio fade curve.");
-        if(c.track<0||c.track>=(int)p.tracks.size()||!within(c.beat,0,4096)||(!std::isfinite(c.length)||c.length<=0||c.length>maxClipLength(c))||!std::isfinite(c.beat+c.length)||c.automationTarget<-1||c.automationTarget>5)return Result::fail("Invalid Playlist clip; section edit cancelled.");
+        if(c.track<0||c.track>=(int)p.tracks.size()||!within(c.beat,0,4096)||(!std::isfinite(c.length)||c.length<=0||c.length>maxClipLength(c))||!std::isfinite(c.beat+c.length)||c.automationTarget<-1||c.automationTarget>=automationTargetCount)return Result::fail("Invalid Playlist clip; section edit cancelled.");
         if(c.isAudio()){
             if(c.isAutomation()||!within(c.sourceOffset,0,maxAudioSeconds)||!within(c.gain,0,2)||!within(c.fadeIn,0,c.length)||!within(c.fadeOut,0,c.length))return Result::fail("Invalid audio clip; section edit cancelled.");
         }else if(c.isAutomation()){
-            if((c.automationTarget!=5&&(c.automationTrack<0||c.automationTrack>=(int)p.tracks.size()))||c.points.size()<2||c.points.size()>maxAutomationPoints)return Result::fail("Invalid automation clip; section edit cancelled.");
+            if(!validAutomationLink(c.automationTarget,c.automationTrack,(int)p.tracks.size())||c.points.size()<2||c.points.size()>maxAutomationPoints)return Result::fail("Invalid automation clip; section edit cancelled.");
             double last=-1;for(const auto& point:c.points){if(!within(point.beat,0,600)||point.beat<=last||!within(point.value,0,1))return Result::fail("Invalid automation points; section edit cancelled.");last=point.beat;}
             ++automation;points+=(int)c.points.size();
         }else if(c.pattern<0||c.pattern>=(int)p.patterns.size())return Result::fail("Missing pattern reference; section edit cancelled.");
@@ -45,7 +45,7 @@ Result transformSectionClips(const Project& source,const String& id,double desti
     }
     std::array<bool,maxClips> moving{};if(move)for(int i:scope.sourceIndices)moving[(size_t)i]=true;
     if(!allowOverlap)for(int index:scope.sourceIndices){const auto& c=source.clips[(size_t)index];double start=destination+(c.beat-scope.start),end=start+c.length;
-        for(int i=0;i<(int)source.clips.size();++i){const auto& other=source.clips[(size_t)i];bool sameAutomation=c.isAutomation()&&other.isAutomation()&&c.automationTarget==other.automationTarget&&(c.automationTarget==5||c.automationTrack==other.automationTrack);if(!moving[(size_t)i]&&(c.track==other.track||sameAutomation)&&overlaps(start,end,other.beat,other.beat+other.length))return Result::fail("Destination overlaps Playlist clip "+String(i+1)+" on the same lane or automation parameter. Choose an empty destination or explicitly allow layering; nothing was changed.");}
+        for(int i=0;i<(int)source.clips.size();++i){const auto& other=source.clips[(size_t)i];bool sameAutomation=c.isAutomation()&&other.isAutomation()&&c.automationTarget==other.automationTarget&&((automationIsMaster(c.automationTarget,c.automationTrack)&&automationIsMaster(other.automationTarget,other.automationTrack))||c.automationTrack==other.automationTrack);if(!moving[(size_t)i]&&(c.track==other.track||sameAutomation)&&overlaps(start,end,other.beat,other.beat+other.length))return Result::fail("Destination overlaps Playlist clip "+String(i+1)+" on the same lane or automation parameter. Choose an empty destination or explicitly allow layering; nothing was changed.");}
     }
     auto next=source;scope.destination=destination;
     for(int index:scope.sourceIndices){if(move){next.clips[(size_t)index].beat=destination+(source.clips[(size_t)index].beat-scope.start);scope.resultIndices.push_back(index);}else{auto copy=source.clips[(size_t)index];copy.beat=destination+(copy.beat-scope.start);scope.resultIndices.push_back((int)next.clips.size());next.clips.push_back(std::move(copy));}}
@@ -63,7 +63,7 @@ Result groupDestination(const Project& source,const std::vector<Clip>& incoming,
     if(copy&&source.clips.size()+incoming.size()>maxClips)return Result::fail("Copy exceeds 512 Playlist clips. Nothing was changed.");
     auto next=source;PlaylistGroupStats result;result.start=4096;result.lowTrack=maxTracks;int moved=0;
     for(auto clip:incoming){clip.beat+=delta;clip.track+=trackDelta;if(!std::isfinite(clip.beat)||clip.beat<0||clip.beat+clip.length>4096||clip.track<0||clip.track>=(int)source.tracks.size())return Result::fail("The complete group must fit inside beats 0-4096 and existing Playlist lanes.");
-        if(!allowOverlap)for(int i=0;i<(int)source.clips.size();++i){if(moving.count(i))continue;const auto& other=source.clips[(size_t)i];bool linked=clip.isAutomation()&&other.isAutomation()&&clip.automationTarget==other.automationTarget&&(clip.automationTarget==5||clip.automationTrack==other.automationTrack);if((clip.track==other.track||linked)&&overlaps(clip.beat,clip.beat+clip.length,other.beat,other.beat+other.length))return Result::fail("Destination overlaps another clip on the same lane or automation parameter. Choose empty space or explicitly allow layering.");}
+        if(!allowOverlap)for(int i=0;i<(int)source.clips.size();++i){if(moving.count(i))continue;const auto& other=source.clips[(size_t)i];bool linked=clip.isAutomation()&&other.isAutomation()&&clip.automationTarget==other.automationTarget&&((automationIsMaster(clip.automationTarget,clip.automationTrack)&&automationIsMaster(other.automationTarget,other.automationTrack))||clip.automationTrack==other.automationTrack);if((clip.track==other.track||linked)&&overlaps(clip.beat,clip.beat+clip.length,other.beat,other.beat+other.length))return Result::fail("Destination overlaps another clip on the same lane or automation parameter. Choose empty space or explicitly allow layering.");}
         result.start=jmin(result.start,clip.beat);result.end=jmax(result.end,clip.beat+clip.length);result.lowTrack=jmin(result.lowTrack,clip.track);result.highTrack=jmax(result.highTrack,clip.track);
         if(copy){clip.editorId=Uuid().toString();result.resultIndices.push_back((int)next.clips.size());next.clips.push_back(std::move(clip));}
         else{auto it=moving.begin();std::advance(it,moved++);result.resultIndices.push_back(*it);next.clips[(size_t)*it]=std::move(clip);}
@@ -76,6 +76,49 @@ Result transformPlaylistGroup(const Project& source,const std::set<int>& indices
 }
 Result insertPlaylistGroup(const Project& source,const std::vector<Clip>& clips,double delta,int trackDelta,bool allowOverlap,Project& output,PlaylistGroupStats* stats){int automation=0,points=0;auto valid=validateClips(source,automation,points);return valid.failed()?valid:groupDestination(source,clips,{},delta,trackDelta,true,allowOverlap,output,stats);}
 Result deletePlaylistGroup(const Project& source,const std::set<int>& indices,Project& output){PlaylistGroupStats stats;auto valid=inspectPlaylistGroup(source,indices,stats);if(valid.failed())return valid;auto next=source;for(auto i=indices.rbegin();i!=indices.rend();++i)next.clips.erase(next.clips.begin()+*i);output=std::move(next);return Result::ok();}
+
+double rippleBeat(double beat,double start,double length,bool remove){
+    if(!remove)return beat>=start?beat+length:beat;
+    return beat<=start?beat:beat<start+length?start:beat-length;
+}
+Result ripplePlaylist(const Project& source,double start,double length,bool remove,Project& output,RippleStats* stats){
+    if(!within(start,0,4096)||!within(length,.25,4096)||start+length>4096)return Result::fail("Ripple range must span at least 1/4 beat within beats 0-4096.");
+    int automation=0,points=0;auto valid=validateClips(source,automation,points);if(valid.failed())return valid;
+    valid=validateSongMarkers(source);if(valid.failed())return valid;
+    const auto& rec=source.recording;
+    if(!within(rec.punchStart,0,4096)||!within(rec.punchEnd,0,4096)||rec.punchEnd-rec.punchStart<.25)return Result::fail("Invalid punch range; ripple cancelled.");
+    auto next=source;RippleStats result;next.clips.clear();double end=start+length;
+    for(size_t i=0;i<source.clips.size();++i){auto clip=source.clips[i];double clipEnd=clip.beat+clip.length;
+        bool crosses=clip.beat<start&&clipEnd>start;
+        if(remove)crosses|=clip.beat<end&&clipEnd>end;
+        if(crosses)return Result::fail("Playlist clip "+String((int)i+1)+" crosses a ripple boundary. Split the clip or adjust the range; nothing was changed.");
+        if(remove&&clip.beat>=start&&clipEnd<=end){++result.removedClips;continue;}
+        double moved=rippleBeat(clip.beat,start,length,remove);
+        if(moved!=clip.beat){clip.beat=moved;++result.movedClips;if(clip.beat+clip.length>4096)return Result::fail("Ripple would move a Playlist clip beyond beat 4096; nothing was changed.");}
+        next.clips.push_back(std::move(clip));
+    }
+    next.markers.clear();
+    for(auto marker:source.markers){double oldStart=marker.beat,oldEnd=marker.endBeat;
+        if(remove&&!marker.isSection()&&oldStart>=start&&oldStart<end){++result.removedMarkers;continue;}
+        // A section ending at an insertion belongs to the left; one starting there belongs to the right.
+        marker.beat=rippleBeat(oldStart,start,length,remove);
+        if(marker.isSection())marker.endBeat=remove?rippleBeat(oldEnd,start,length,true):(oldEnd>start?oldEnd+length:oldEnd);
+        if(marker.isSection()&&marker.endBeat==marker.beat){++result.removedMarkers;continue;}
+        if(marker.isSection()&&marker.endBeat-marker.beat<.25)return Result::fail("Ripple would leave section \""+marker.name+"\" shorter than 1/4 beat. Adjust its boundaries first; nothing was changed.");
+        if(marker.beat>4096||marker.endBeat>4096)return Result::fail("Ripple would move a marker or section beyond beat 4096; nothing was changed.");
+        if(marker.beat!=oldStart||marker.endBeat!=oldEnd)++result.movedMarkers;
+        next.markers.push_back(std::move(marker));
+    }
+    if(next.loopSection.isNotEmpty()&&!findSongMarker(next,next.loopSection)){next.loopSection.clear();next.loop=false;}
+    std::sort(next.markers.begin(),next.markers.end(),[](const SongMarker& a,const SongMarker& b){return a.beat==b.beat?a.id<b.id:a.beat<b.beat;});
+    next.recording.punchStart=rippleBeat(rec.punchStart,start,length,remove);
+    next.recording.punchEnd=remove?rippleBeat(rec.punchEnd,start,length,true):(rec.punchEnd>start?rec.punchEnd+length:rec.punchEnd);
+    if(next.recording.punchEnd-next.recording.punchStart<.25){next.recording.punch=false;next.recording.punchStart=0;next.recording.punchEnd=8;result.punchReset=true;}
+    if(next.recording.punchEnd>4096)return Result::fail("Ripple would move the punch range beyond beat 4096; nothing was changed.");
+    valid=validateSongMarkers(next);if(valid.failed())return valid;
+    result.changed=JSON::toString(projectToJson(source))!=JSON::toString(projectToJson(next));
+    output=std::move(next);if(stats)*stats=result;return Result::ok();
+}
 
 Result setPlaylistLoopRange(const Project& source,double start,double end,Project& output){
     if(!std::isfinite(start)||!std::isfinite(end)||start<0||end>4096||end-start<.25)return Result::fail("A Playlist loop must span at least a quarter beat within beats 0-4096.");

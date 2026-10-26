@@ -4,15 +4,17 @@
 namespace pulse {
 using namespace juce;
 void Studio::restoreInputSettings(){
-    inputMonitor.store(false);auto file=root.getChildFile("data/input-audio.json");if(!file.existsAsFile()||file.getSize()>4096)return;
+    inputMonitor.store(false);inputAlignment={};auto file=root.getChildFile("data/input-audio.json");if(!file.existsAsFile()||file.getSize()>4096)return;
     auto value=JSON::parse(file.loadFileAsString());if(!value.isObject()||(int)value["schema"]!=1)return;
+    if(value.hasProperty("alignment")){InputAlignmentSettings restored;if(inputAlignmentFromJson(value["alignment"],restored).wasOk())inputAlignment=restored;}
+    if(value["longNotes"].isBool())longNotesEnabled=(bool)value["longNotes"];
     if(value["takeSeconds"].isInt()){int seconds=(int)value["takeSeconds"];if(seconds==120||seconds==300||seconds==600||seconds==1200)audioTakeSeconds=seconds;}
     if(value.hasProperty("mode")){int mode=(int)value["mode"];if(mode>=0&&mode<=2)inputMode.store(mode);}
     if(value.hasProperty("monitorLevel")){float level=(float)value["monitorLevel"];if(std::isfinite(level)&&level>=0&&level<=1)monitorLevel.store(level);}
 }
-void Studio::saveInputSettings(){
-    auto* object=new DynamicObject();object->setProperty("schema",1);object->setProperty("takeSeconds",audioTakeSeconds);object->setProperty("mode",inputMode.load());object->setProperty("monitorLevel",monitorLevel.load());
-    TemporaryFile temporary(root.getChildFile("data/input-audio.json"));if(!temporary.getFile().replaceWithText(JSON::toString(var(object),false))||!temporary.overwriteTargetFileWithTemporary())status="Input settings could not be saved locally.";
+bool Studio::saveInputSettings(){
+    auto* object=new DynamicObject();object->setProperty("schema",1);object->setProperty("alignment",inputAlignmentToJson(inputAlignment));object->setProperty("takeSeconds",audioTakeSeconds);object->setProperty("longNotes",longNotesEnabled);object->setProperty("mode",inputMode.load());object->setProperty("monitorLevel",monitorLevel.load());
+    TemporaryFile temporary(root.getChildFile("data/input-audio.json"));if(!temporary.getFile().replaceWithText(JSON::toString(var(object),false))||!temporary.overwriteTargetFileWithTemporary()){status="Input settings could not be saved locally.";return false;}return true;
 }
 Engine::TakePlan Studio::recordingPlan(bool keyboard)const{
     Engine::TakePlan plan;const auto& options=project.recording;plan.countInBeats=options.countInBars*4;
@@ -21,6 +23,7 @@ Engine::TakePlan Studio::recordingPlan(bool keyboard)const{
     return plan;
 }
 void Studio::startKeyboardRecording(){
+    if(longNotesEnabled){startLongNotes();return;}
     if(!audioReady())return;if(project.recording.punch&&project.recording.punchEnd>project.patterns[(size_t)project.activePattern].length){status="Typing punch range must fit inside the active pattern. Extend the pattern or shorten the range.";showPane(recordingPane);return;}
     auto plan=recordingPlan(true);releaseKeys();engine->preview(nullptr);engine->stop();checkpoint();takeOldLoop=project.loop;takeOldMode=project.songMode;
     if(project.recording.punch){takeRestoreLoop=true;takeRestoreMode=true;project.loop=false;project.songMode=false;}
@@ -38,8 +41,11 @@ void Studio::paintRecording(Graphics& g,Rectangle<float> r){
     Colour text(0xffd9ddde),muted(0xffa5b0b2),accent(0xffb8c997),orange(0xffe3aa63);g.setColour(Colour(0xff394349));g.fillRect(r);float x=r.getX()+14,y=r.getY()+12;auto& options=project.recording;
     button(g,"TAP",{x,y,132,68},tapTempoAction,0,false,true);button(g,"Reset taps",{x,y+76,132,25},tapReset);
     label(g,String(project.bpm,1)+" BPM",{x+150,y+4,200,35},25,text,true);label(g,"Tap a steady beat",{x+150,y+44,170,22},12,muted);button(g,"Metronome sound...",{x+330,y+43,153,25},metronomeSettingsOpen);
-    button(g,audioHistory.active()?"Input history ON: "+String(audioHistory.frames()/historyRate.load(),1)+" s":"Input history...",{x+150,y+78,260,25},audioHistoryOpen,0,audioHistory.active());
-    button(g,"Audio limit: "+String(audioTakeSeconds/60)+" min...",{x+330,y+4,153,28},audioTakeLimit);
+    button(g,audioHistory.active()?"Input history ON: "+String(audioHistory.frames()/historyRate.load(),1)+" s":"Input history...",{x+150,y+78,153,25},audioHistoryOpen,0,audioHistory.active());
+    button(g,"Align input...",{x+495,y+4,r.getWidth()-523,28},inputAlignmentOpen);
+    label(g,inputAlignmentName(inputAlignment.mode),{x+495,y+39,r.getWidth()-523,25},10,muted);
+    button(g,"Take limit: "+String(audioTakeSeconds/60)+" min...",{x+330,y+4,153,28},audioTakeLimit);
+    button(g,longNotesEnabled?"Long NOTES: ON":"Long NOTES: OFF",{x+310,y+78,173,25},longNotesToggle,0,longNotesEnabled);
     label(g,"Count-in before recording",{x,y+122,220,23},12,text,true);
     for(int i=0;i<3;++i)button(g,i==0?"Off":String(i)+" bar"+(i==1?"":"s"),{x+225+i*81,y+121,75,25},countInSelect,i,options.countInBars==i);
     button(g,"Punch recording",{x,y+164,153,28},punchToggle,0,options.punch);button(g,"Set range...",{x+164,y+164,112,28},punchRange);

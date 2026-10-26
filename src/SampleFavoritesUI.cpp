@@ -13,7 +13,7 @@ bool Studio::setSampleFavorite(const File& file,bool add,const String& expected)
 }
 bool Studio::previewBrowserSample(const BrowserAsset& asset,bool original){
     if(recording||recorder.isActive()){status="Finish the take before previewing samples.";return false;}
-    String error;auto* sample=assets.load(asset.file,error);if(!sample){status=error;return false;}if(!audioReady())return false;
+    String error;auto sample=assets.load(asset.file,error);if(!sample){status=error;return false;}if(!audioReady())return false;
     SamplePreviewOptions options;if(!original){auto result=loadSamplePreview(samplePreviewFile(),asset.file,options);if(result.failed()){status=result.getErrorMessage()+" Use Preview at original speed to audition without settings.";return false;}}
     if(!engine->preview(sample,asset.start,asset.end,.7f,options.sync?options.sourceBpm:0,options.repeat,options.sync)){status="Preview range is invalid or queue busy. Try again.";return false;}
     status="Previewing "+asset.file.getFileName()+(options.sync?" / "+String(options.sourceBpm,2)+" BPM source -> project tempo (pitch follows speed)":" at original speed")+(options.repeat?" / repeat":"")+". Stop preview or Esc stops audition; channel audio is unchanged.";repaint();return true;

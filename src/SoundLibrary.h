@@ -4,7 +4,7 @@
 namespace pulse {
 constexpr int maxPersonalSounds=128,maxSoundLibraryBytes=1048576;
 struct PersonalSound {juce::String id;SynthPreset sound;};
-struct SoundLibrary {std::vector<PersonalSound> personal;juce::StringArray favorites;};
+struct SoundLibrary {std::vector<PersonalSound> personal;juce::StringArray favorites;juce::Array<juce::var> removedSounds;juce::StringArray removedFavorites;};
 juce::String factorySoundId(const SynthPreset&);
 const PersonalSound* findPersonalSound(const SoundLibrary&,const juce::String&);
 bool resolveLibrarySound(const SoundLibrary&,const juce::String&,SynthPreset&);

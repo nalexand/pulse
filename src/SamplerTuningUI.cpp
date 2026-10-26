@@ -7,7 +7,7 @@ namespace {String sampleStamp(const File& file){return file.existsAsFile()?file.
 std::optional<Studio::SamplerContext> Studio::samplerContext(){
     if(recording||recorder.isActive()||pendingNoteTool()){status="Finish the take and note preview before tuning a sample.";return {};}
     if(selectedTrack<0||selectedTrack>=(int)project.tracks.size())return {};auto& track=project.tracks[(size_t)selectedTrack];if(track.isBus||track.instrument!=Instrument::sample||track.samplePath.isEmpty()){status="Load a sample on an instrument channel first.";return {};}
-    auto file=File::isAbsolutePath(track.samplePath)?File(track.samplePath):(currentFile==File()?root:currentFile.getParentDirectory()).getChildFile(track.samplePath);String error;auto* sample=assets.load(file,error);if(!sample){status=error;return {};}
+    auto file=File::isAbsolutePath(track.samplePath)?File(track.samplePath):(currentFile==File()?root:currentFile.getParentDirectory()).getChildFile(track.samplePath);String error;auto sample=assets.load(file,error);if(!sample){status=error;return {};}
     double duration=sample->audio.getNumSamples()/sample->sampleRate;if(track.sampleStart>=duration||(track.sampleEnd>0&&track.sampleEnd>duration+1/sample->sampleRate)){status="Correct the sampler range before tuning.";return {};}
     return SamplerContext{selectedTrack,revision,file,sampleStamp(file),track.sampleStart,track.sampleEnd,sample};
 }
@@ -32,7 +32,8 @@ void Studio::showSamplerTuning(const SamplerContext& context,int rootNote,double
 }
 bool Studio::startSamplerPitch(bool present){
     if(samplePitchBusy){status="Sample pitch detection is already running.";return false;}auto context=samplerContext();if(!context)return false;if(samplePitchThread.joinable())samplePitchThread.join();
-    samplePitchContext=*context;samplePitchValid=false;samplePitchPresent=present;samplePitchCancel.store(false);samplePitchDone.store(false);samplePitchBusy=true;status="Detecting a sustained sample note in the background...";
+    samplePitchContext=*context;samplePitchContext.sample.reset(); // Retain metadata only; the worker captures its own source lease.
+    samplePitchValid=false;samplePitchPresent=present;samplePitchCancel.store(false);samplePitchDone.store(false);samplePitchBusy=true;status="Detecting a sustained sample note in the background...";
     auto source=context->sample;int first=(int)std::round(context->start*source->sampleRate),end=context->end>0?jmin(source->audio.getNumSamples(),(int)std::round(context->end*source->sampleRate)):source->audio.getNumSamples();
     samplePitchThread=std::thread([this,source,first,end]{SamplePitch detected;auto result=detectSamplePitch(source->audio,source->sampleRate,first,end,detected,[this]{return samplePitchCancel.load();});samplePitchValid=result.wasOk();samplePitchResult=detected;samplePitchMessage=result.wasOk()?"Estimate: "+samplerNoteName(detected.root)+" / "+String(detected.frequency,2)+" Hz / periodicity "+String(detected.confidence*100,0)+"%. Proposed fine tune "+String(detected.cents,1)+" cents. Octave estimates can be wrong; check by ear.":result.getErrorMessage();samplePitchDone.store(true,std::memory_order_release);});return true;
 }

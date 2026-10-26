@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 #include "Project.h"
+#include "AuxRouting.h"
+#include "AutomationParameters.h"
 #include "EffectPresets.h"
 #include "SamplerTuning.h"
 #include <juce_cryptography/juce_cryptography.h>
@@ -12,10 +14,10 @@ String instrumentName(Instrument i) {
     static const char* names[] = {"Analog kick", "Noise snare", "Closed hat", "Clap", "Open hat", "Mono bass", "Warm pad", "Pluck lead", "Sampler", "Pulse Analog", "Pulse FM", "Pulse Wavetable", "Pulse Additive", "Pulse Resonator"};
     return names[jlimit(0, instrumentCount-1, (int)i)];
 }
-String effectName(int i,bool compact){static const char* names[]={"Equalizer","Compressor","Stereo reverb","Stereo chorus","Stereo flanger","Stereo phaser"};static const char* shortNames[]={"EQ","Comp","Reverb","Chorus","Flanger","Phaser"};return i>=0&&i<builtinEffectCount?String(compact?shortNames[i]:names[i]):String("Unknown effect");}
-Result validateEffectOrder(const EffectOrder& order){std::array<bool,builtinEffectCount> seen{};for(int i:order){if(i<0||i>=builtinEffectCount||seen[(size_t)i])return Result::fail("Effect chain must contain each of the six built-in effects exactly once.");seen[(size_t)i]=true;}return Result::ok();}
+String effectName(int i,bool compact){static const char* names[]={"Equalizer","Compressor","Stereo reverb","Stereo chorus","Stereo flanger","Stereo phaser","Delay","Distortion"};static const char* shortNames[]={"EQ","Comp","Reverb","Chorus","Flanger","Phaser","Delay","Distortion"};return i>=0&&i<builtinEffectCount?String(compact?shortNames[i]:names[i]):String("Unknown effect");}
+Result validateEffectOrder(const EffectOrder& order){std::array<bool,builtinEffectCount> seen{};for(int i:order){if(i<0||i>=builtinEffectCount||seen[(size_t)i])return Result::fail("Effect chain must contain each of the eight built-in effects exactly once.");seen[(size_t)i]=true;}return Result::ok();}
 var effectOrderToJson(const EffectOrder& order){Array<var> array;for(int i:order)array.add(i);return var(array);}
-Result effectOrderFromJson(const var& value,EffectOrder& out){auto* array=value.getArray();if(!array||array->size()!=builtinEffectCount)return Result::fail("Invalid effect chain order.");EffectOrder order;for(int i=0;i<builtinEffectCount;++i){const auto& v=(*array)[i];double n=(double)v;if(!(v.isInt()||v.isInt64()||v.isDouble())||!std::isfinite(n)||n<0||n>=builtinEffectCount||n!=std::floor(n))return Result::fail("Invalid effect identity in chain.");order[(size_t)i]=(int)n;}auto valid=validateEffectOrder(order);if(valid.wasOk())out=order;return valid;}
+Result effectOrderFromJson(const var& value,EffectOrder& out){auto* array=value.getArray();if(!array||(array->size()!=builtinEffectCount&&array->size()!=6))return Result::fail("Invalid effect chain order.");EffectOrder order{0,1,2,3,4,5,6,7};for(int i=0;i<array->size();++i){const auto& v=(*array)[i];double n=(double)v;if(!(v.isInt()||v.isInt64()||v.isDouble())||!std::isfinite(n)||n<0||n>=array->size()||n!=std::floor(n))return Result::fail("Invalid effect identity in chain.");order[(size_t)i]=(int)n;}auto valid=validateEffectOrder(order);if(valid.wasOk())out=order;return valid;}
 bool isSynth(Instrument i){return i==Instrument::analog||i==Instrument::fm||i==Instrument::wavetable||i==Instrument::additive||i==Instrument::physical;}
 bool isDrum(Instrument i) { return (int)i <= 4; }
 String patternColourName(int index){static const char* names[]={"Automatic","Green","Sage","Teal","Sky","Blue","Violet","Lavender","Rose","Coral","Orange","Sand","Grey"};return index>=0&&index<patternColourCount?names[index]:"Unknown";}
@@ -46,6 +48,10 @@ Result storeSongMarker(Project& p,const SongMarker& marker){
 }
 Result removeSongMarker(Project& p,const String& id){auto found=std::find_if(p.markers.begin(),p.markers.end(),[&](const SongMarker& m){return m.id==id;});if(found==p.markers.end())return Result::fail("Song marker no longer exists.");p.markers.erase(found);if(p.loopSection==id)p.loopSection.clear();return Result::ok();}
 const SongMarker* adjacentSongMarker(const Project& p,double beat,bool next){const SongMarker* found=nullptr;for(const auto& m:p.markers)if(next?m.beat>beat+1e-6:m.beat<beat-1e-6)if(!found||(next?m.beat<found->beat:m.beat>found->beat))found=&m;return found;}
+uint32_t audibleChokeMask(const Project& p){
+    auto graph=routingAudibility(p);uint32_t result=0;
+    for(int i=0;i<(int)p.tracks.size()&&i<maxTracks;++i){const auto& t=p.tracks[(size_t)i];if(t.isBus||t.chokeGroup==0||!(graph.inputs&(1u<<i)))continue;bool automated=false;if(p.songMode)for(const auto& c:p.clips)automated|=c.automationTarget==121&&c.automationTrack==i;if(!t.mute||automated)result|=1u<<i;}return result;
+}
 Project emptyProject() {
     Project p;
     const char* names[] = {"Kick", "Snare", "Closed hat", "Clap", "Open hat", "Bass", "Chords", "Lead"};
@@ -54,7 +60,7 @@ Project emptyProject() {
         t.name = names[i]; t.instrument = (Instrument)i;
         t.volume = i == 2 ? 0.32f : i >= 6 ? 0.28f : 0.65f;
         t.cutoff = i == 5 ? 1400.f : 16000.f;
-        t.send = i == 6 ? 0.35f : i == 7 ? 0.18f : 0.f;
+        t.send = 0;
         t.pan = i == 2 ? 0.18f : i == 4 ? -0.2f : 0.f;
         p.tracks.push_back(t);
     }
@@ -100,16 +106,15 @@ Result validateRouting(const Project& p,std::array<int,maxTracks>* result){
     std::array<int,maxTracks> incoming{},order{};std::array<bool,maxTracks> used{};
     for(int i=0;i<count;++i){auto& m=p.tracks[(size_t)i].mixer;
         if(m.output<-1||m.output>=count||m.output==i||m.sidechain<-1||m.sidechain>=count||m.sidechain==i)return Result::fail("Invalid mixer output or sidechain source.");
-        if(m.output>=0)++incoming[(size_t)m.output];}
+        if(m.output>=0)++incoming[(size_t)m.output];
+        for(const auto& send:p.tracks[(size_t)i].auxSends){if(send.target<-1||send.target>=count||send.target==i||!std::isfinite(send.level)||send.level<0||send.level>1.5f||(send.target>=0&&!p.tracks[(size_t)send.target].isBus))return Result::fail("Auxiliary sends must target another existing bus, with level 0-1.5.");if(send.target>=0)++incoming[(size_t)send.target];}}
     for(int n=0;n<count;++n){int found=-1;for(int i=0;i<count;++i)if(!used[(size_t)i]&&incoming[(size_t)i]==0){found=i;break;}
         if(found<0)return Result::fail("Mixer routing cannot contain feedback cycles.");
-        order[(size_t)n]=found;used[(size_t)found]=true;int output=p.tracks[(size_t)found].mixer.output;if(output>=0)--incoming[(size_t)output];}
+        order[(size_t)n]=found;used[(size_t)found]=true;int output=p.tracks[(size_t)found].mixer.output;if(output>=0)--incoming[(size_t)output];for(const auto& send:p.tracks[(size_t)found].auxSends)if(send.target>=0)--incoming[(size_t)send.target];}
     if(result)*result=order;return Result::ok();
 }
-String automationName(AutomationTarget target){
-    const char* names[]={"Volume","Pan","Tone filter","Saturation","Delay send","Master volume"};
-    return names[jlimit(0,5,(int)target)];
-}
+String automationName(AutomationTarget target){int id=(int)target;if(id<0||id>=automationTargetCount)return "Unknown automation";const auto& p=automationParameters()[(size_t)id];return id<6?p.name:p.group+" / "+p.name;}
+
 static var object() { return var(new DynamicObject()); }
 static void put(var& o, const char* name, const var& value) { o.getDynamicObject()->setProperty(name, value); }
 var projectToJson(const Project& p) {
@@ -121,8 +126,8 @@ var projectToJson(const Project& p) {
     for (const auto& t : p.tracks) {
         var v = object(); put(v,"name",t.name); put(v,"instrument",(int)t.instrument); put(v,"volume",t.volume); put(v,"pan",t.pan);
         put(v,"cutoff",t.cutoff); put(v,"drive",t.drive); put(v,"send",t.send); put(v,"attack",t.attack); put(v,"release",t.release);
-        put(v,"mute",t.mute); put(v,"solo",t.solo); put(v,"samplePath",t.samplePath);put(v,"sampleStart",t.sampleStart);put(v,"sampleEnd",t.sampleEnd);put(v,"sampleLoop",t.sampleLoop);put(v,"sampleRoot",t.sampleRoot);put(v,"sampleTune",t.sampleTune);put(v,"tuning",microTuningToJson(t.tuning));put(v,"isBus",t.isBus);var m=object();const auto& fx=t.mixer;
-        put(m,"dynamics",dynamicsToJson(fx.dynamics));put(m,"stereo",stereoToJson(fx.stereo));put(m,"order",effectOrderToJson(fx.order));put(m,"flanger",modulationToJson(fx.flanger));put(m,"phaser",modulationToJson(fx.phaser));put(m,"chorus",chorusToJson(fx.chorus));put(m,"output",fx.output);put(m,"sidechain",fx.sidechain);put(m,"eq",fx.eq);put(m,"compressor",fx.compressor);put(m,"reverb",fx.reverb);
+        put(v,"mute",t.mute); put(v,"solo",t.solo); put(v,"samplePath",t.samplePath);put(v,"sampleStart",t.sampleStart);put(v,"sampleEnd",t.sampleEnd);put(v,"sampleLoop",t.sampleLoop);put(v,"sampleRoot",t.sampleRoot);put(v,"sampleTune",t.sampleTune);put(v,"tuning",microTuningToJson(t.tuning));put(v,"isBus",t.isBus);put(v,"chokeGroup",t.chokeGroup);put(v,"auxSends",auxSendsToJson(t.auxSends));var m=object();const auto& fx=t.mixer;
+        put(m,"delay",echoToJson(fx.delay));put(m,"distortion",distortionToJson(fx.distortion));put(m,"dynamics",dynamicsToJson(fx.dynamics));put(m,"stereo",stereoToJson(fx.stereo));put(m,"order",effectOrderToJson(fx.order));put(m,"flanger",modulationToJson(fx.flanger));put(m,"phaser",modulationToJson(fx.phaser));put(m,"chorus",chorusToJson(fx.chorus));put(m,"output",fx.output);put(m,"sidechain",fx.sidechain);put(m,"eq",fx.eq);put(m,"compressor",fx.compressor);put(m,"reverb",fx.reverb);
         put(m,"low",fx.low);put(m,"mid",fx.mid);put(m,"high",fx.high);put(m,"threshold",fx.threshold);put(m,"ratio",fx.ratio);put(m,"attack",fx.compAttack);put(m,"release",fx.compRelease);put(m,"makeup",fx.makeup);put(m,"mix",fx.reverbMix);put(m,"room",fx.room);put(m,"damping",fx.damping);put(v,"mixer",m);put(v,"synth",synthPatchToJson(t.synth));put(v,"soundName",t.soundName);tracks.add(v);
     } put(root,"tracks",tracks);
     Array<var> patterns;
@@ -137,7 +142,7 @@ var projectToJson(const Project& p) {
         } put(v,"lanes",lanes); patterns.add(v);
     } put(root,"patterns",patterns);
     Array<var> clips;
-    for (const auto& c : p.clips) { var v = object(); put(v,"track",c.track); put(v,"pattern",c.pattern); put(v,"beat",c.beat); put(v,"length",c.length); put(v,"audioPath",c.audioPath); put(v,"sourceOffset",c.sourceOffset); put(v,"gain",c.gain); put(v,"fadeIn",c.fadeIn); put(v,"fadeOut",c.fadeOut); put(v,"fadeInCurve",(int)c.fadeInCurve); put(v,"fadeOutCurve",(int)c.fadeOutCurve); put(v,"automationTarget",c.automationTarget); put(v,"automationTrack",c.automationTrack); Array<var> points; for(const auto& point:c.points){var x=object();put(x,"beat",point.beat);put(x,"value",point.value);put(x,"hold",point.hold);put(x,"curve",(int)point.curve);put(x,"tension",point.tension);points.add(x);} put(v,"points",points); clips.add(v); }
+    for (const auto& c : p.clips) { var v = object(); put(v,"track",c.track); put(v,"pattern",c.pattern); put(v,"beat",c.beat); put(v,"length",c.length); put(v,"audioPath",c.audioPath); put(v,"sourceOffset",c.sourceOffset); put(v,"gain",c.gain); put(v,"fadeIn",c.fadeIn); put(v,"fadeOut",c.fadeOut); put(v,"fadeInCurve",(int)c.fadeInCurve); put(v,"fadeOutCurve",(int)c.fadeOutCurve); put(v,"automationTarget",c.automationTarget); put(v,"automationTrack",c.automationTrack);put(v,"automationTrim",c.automationTrim); Array<var> points; for(const auto& point:c.points){var x=object();put(x,"beat",point.beat);put(x,"value",point.value);put(x,"hold",point.hold);put(x,"curve",(int)point.curve);put(x,"tension",point.tension);points.add(x);} put(v,"points",points); clips.add(v); }
     put(root,"clips",clips); return root;
 }
 static double value(const var& v, const char* key, double fallback) {
@@ -158,7 +163,7 @@ Result projectFromJson(const var& root, Project& out) {
     // Preserve that exact signal path when an older song is opened.
     if((int)root["schema"]<19){p.masterSoftClip=true;p.delayReturn=.5f;}
     else{const auto& wet=root["delayReturn"];if(!(wet.isInt()||wet.isInt64()||wet.isDouble())||!std::isfinite((double)wet)||(double)wet<0||(double)wet>1||!root["masterSoftClip"].isBool())return Result::fail("Invalid master processing settings.");p.delayReturn=(float)(double)wet;p.masterSoftClip=(bool)root["masterSoftClip"];}
-    if((int)root["schema"]>=20){auto valid=masterEffectsFromJson(root["masterEffects"],p.masterMixer);if(valid.failed())return valid;if((int)root["schema"]<22&&p.masterMixer.dynamics!=DynamicsOptions{})return Result::fail("Extended Master dynamics require schema 22.");if((int)root["schema"]>=22&&(int)root["masterEffects"]["chain"]["schema"]<2)return Result::fail("Missing complete Master dynamics state.");}
+    if((int)root["schema"]>=20){auto valid=masterEffectsFromJson(root["masterEffects"],p.masterMixer);if(valid.failed())return valid;if((int)root["schema"]>=28&&(int)root["masterEffects"]["chain"]["schema"]!=3)return Result::fail("Missing complete eight-slot Master effects.");if((int)root["schema"]<28&&(p.masterMixer.delay!=EchoSettings{}||p.masterMixer.distortion!=DistortionSettings{}))return Result::fail("Master Delay and Distortion require project schema 28.");if((int)root["schema"]<22&&p.masterMixer.dynamics!=DynamicsOptions{})return Result::fail("Extended Master dynamics require schema 22.");if((int)root["schema"]>=22&&(int)root["masterEffects"]["chain"]["schema"]<2)return Result::fail("Missing complete Master dynamics state.");}
     p.songMode = (bool)root["songMode"]; p.loop = root.hasProperty("loop") ? (bool)root["loop"] : true;
     p.metronome = (bool)root["metronome"]; p.notes = root["notes"].toString();
     if(root.hasProperty("recording")){auto r=root["recording"];if(!r.isObject())return Result::fail("Invalid recording settings.");p.recording.countInBars=jlimit(0,2,(int)value(r,"countInBars",0));p.recording.preRollBars=jlimit(0,2,(int)value(r,"preRollBars",1));p.recording.punch=(bool)r["punch"];p.recording.punchStart=value(r,"punchStart",0);p.recording.punchEnd=value(r,"punchEnd",8);if(p.recording.punchStart<0||p.recording.punchEnd>4096||p.recording.punchEnd-p.recording.punchStart<.25)return Result::fail("Punch range must span at least 1/4 beat inside 0-4096 beats.");}
@@ -167,6 +172,7 @@ Result projectFromJson(const var& root, Project& out) {
     auto markersValid=validateSongMarkers(p);if(markersValid.failed())return markersValid;std::sort(p.markers.begin(),p.markers.end(),[](const SongMarker& a,const SongMarker& b){return a.beat==b.beat?a.id<b.id:a.beat<b.beat;});
     for (const auto& v : *tracks) {
         if (!v.isObject()) return Result::fail("Invalid track object.");
+        if((v["instrument"].isInt()||v["instrument"].isInt64())&&(int64)v["instrument"]==14)return Result::fail("Pulse Granular was removed in 0.79. Open this song in 0.78 and bounce or replace its Granular channels first. The original project is unchanged.");
         if((int)root["schema"]>=17&&(!(v["instrument"].isInt()||v["instrument"].isInt64())||(int64)v["instrument"]<0||(int64)v["instrument"]>=instrumentCount))return Result::fail("Invalid instrument identity.");
         if((int)root["schema"]<17&&(int)v["instrument"]==(int)Instrument::additive)return Result::fail("Additive instruments require project schema 17.");
         if((int)root["schema"]<13&&(int)v["instrument"]==(int)Instrument::wavetable)return Result::fail("Wavetable instruments require project schema 13.");
@@ -180,10 +186,17 @@ Result projectFromJson(const var& root, Project& out) {
         t.send = (float)jlimit(0.,.8,value(v,"send",0)); t.attack = (float)jlimit(.001,2.,value(v,"attack",.005));
         t.release = (float)jlimit(.02,3.,value(v,"release",.18)); t.mute = (bool)v["mute"]; t.solo = (bool)v["solo"];
         t.samplePath = v["samplePath"].toString();t.sampleStart=jlimit(0.,(int)root["schema"]>=25?maxAudioSeconds:120.,value(v,"sampleStart",0));t.sampleEnd=jlimit(0.,(int)root["schema"]>=25?maxAudioSeconds:120.,value(v,"sampleEnd",0));t.sampleLoop=(bool)v["sampleLoop"];if(t.sampleEnd>0&&t.sampleEnd<=t.sampleStart)return Result::fail("Invalid sampler selection.");t.isBus=(bool)v["isBus"];
+        if(v.hasProperty("chokeGroup")){const auto& g=v["chokeGroup"];if(!(g.isInt()||g.isInt64()||g.isDouble())||!std::isfinite((double)g)||(double)g!=std::floor((double)g)||(double)g<0||(double)g>16)return Result::fail("Choke group must be an integer 0-16.");t.chokeGroup=(int)g;}else if((int)root["schema"]>=33)return Result::fail("Missing channel choke group.");
+        if(v.hasProperty("auxSends")){auto valid=auxSendsFromJson(v["auxSends"],t.auxSends);if(valid.failed())return valid;}else if((int)root["schema"]>=34)return Result::fail("Missing auxiliary send slots.");
+        if((int)root["schema"]<34)for(const auto& send:t.auxSends)if(send.target>=0)return Result::fail("Auxiliary routes require project schema 34.");
+        if((t.chokeGroup&&(int)root["schema"]<33)||(t.isBus&&t.chokeGroup))return Result::fail("Choke groups require schema 33 and a source channel.");
         if((int)root["schema"]>=15){auto note=v["sampleRoot"],tune=v["sampleTune"];auto numeric=[](const var& x){return x.isInt()||x.isInt64()||x.isDouble();};if(!numeric(note)||!numeric(tune)||!std::isfinite((double)note)||(double)note!=std::floor((double)note)||(double)note<0||(double)note>127)return Result::fail("Invalid sampler root or fine tune.");t.sampleRoot=(int)note;t.sampleTune=(double)tune;auto valid=validateSamplerTuning(t.sampleRoot,t.sampleTune);if(valid.failed())return valid;}
         if(v.hasProperty("mixer")){auto m=v["mixer"];if(!m.isObject())return Result::fail("Invalid mixer settings.");auto& fx=t.mixer;
             if(m.hasProperty("dynamics")){auto result=dynamicsFromJson(m["dynamics"],fx.dynamics);if(result.failed())return result;if((int)root["schema"]<22&&fx.dynamics!=DynamicsOptions{})return Result::fail("Extended dynamics require schema 22.");}else if((int)root["schema"]>=22)return Result::fail("Missing dynamics options.");
             if(m.hasProperty("stereo")){auto result=stereoFromJson(m["stereo"],fx.stereo);if(result.failed())return result;}else if((int)root["schema"]>=12)return Result::fail("Mixer is missing its stereo settings.");
+            if((int)root["schema"]>=28&&(!m["order"].isArray()||m["order"].getArray()->size()!=8))return Result::fail("Schema 28 needs eight effect slots.");
+            for(auto key:{"delay","distortion"})if((int)root["schema"]>=28||m.hasProperty(key)){auto result=String(key)=="delay"?echoFromJson(m[key],fx.delay):distortionFromJson(m[key],fx.distortion);if(result.failed())return result;}
+            if((int)root["schema"]<28&&(fx.delay!=EchoSettings{}||fx.distortion!=DistortionSettings{}))return Result::fail("Delay and Distortion need project schema 28.");
             if(m.hasProperty("order")){auto result=effectOrderFromJson(m["order"],fx.order);if(result.failed())return result;}else if((int)root["schema"]>=11)return Result::fail("Mixer is missing its effect chain order.");
             if(m.hasProperty("chorus")){auto result=chorusFromJson(m["chorus"],fx.chorus);if(result.failed())return result;}else if((int)root["schema"]>=9)return Result::fail("Mixer is missing its chorus settings.");
             for(auto kind:{ModulationKind::flanger,ModulationKind::phaser}){auto key=kind==ModulationKind::flanger?"flanger":"phaser";auto& effect=kind==ModulationKind::flanger?fx.flanger:fx.phaser;if(m.hasProperty(key)){auto result=modulationFromJson(m[key],kind,effect);if(result.failed())return result;}else if((int)root["schema"]>=10)return Result::fail("Mixer is missing its modulation settings.");}
@@ -225,11 +238,19 @@ Result projectFromJson(const var& root, Project& out) {
             c.audioPath=v["audioPath"].toString(); c.sourceOffset=value(v,"sourceOffset",0); c.gain=(float)jlimit(0.,2.,value(v,"gain",1)); c.fadeIn=jlimit(0.,c.length,value(v,"fadeIn",0)); c.fadeOut=jlimit(0.,c.length,value(v,"fadeOut",0));
             for(auto field:{"fadeInCurve","fadeOutCurve"}){auto x=v[field];if(!v.hasProperty(field)){if((int)root["schema"]>=16)return Result::fail("Audio fade curve fields are missing.");continue;}if(!(x.isInt()||x.isInt64())||(int64)x<0||(int64)x>2)return Result::fail("Invalid audio fade curve (0 Linear, 1 Equal power, 2 S-curve).");if((int)root["schema"]<16&&(int)x!=0)return Result::fail("Nonlinear audio fades require project schema 16.");if(String(field)=="fadeInCurve")c.fadeInCurve=(FadeCurve)(int)x;else c.fadeOutCurve=(FadeCurve)(int)x;}
             if(!c.isAudio()&&(c.fadeInCurve!=FadeCurve::linear||c.fadeOutCurve!=FadeCurve::linear))return Result::fail("Nonlinear fades require an audio clip.");
+            if((int)root["schema"]>=29)for(auto key:{"automationTarget","automationTrack"}){const auto& x=v[key];if(!(x.isInt()||x.isInt64()||x.isDouble())||!std::isfinite((double)x)||(double)x!=std::floor((double)x))return Result::fail("Automation identities must be integers.");}
             c.automationTarget=(int)value(v,"automationTarget",-1);c.automationTrack=(int)value(v,"automationTrack",-1);
-            if(c.automationTarget<-1||c.automationTarget>5||c.length<=0||c.length>((int)root["schema"]>=25?maxClipLength(c):600.))return Result::fail("Invalid automation target or clip length.");
+            if(v.hasProperty("automationTrim")){if(!v["automationTrim"].isBool())return Result::fail("Automation Trim must be boolean.");c.automationTrim=(bool)v["automationTrim"];}else if((int)root["schema"]>=32)return Result::fail("Missing automation Trim mode.");
+            if(c.automationTrim&&((int)root["schema"]<32||!c.isAutomation()||automationParameters()[(size_t)juce::jlimit(0,automationTargetCount-1,c.automationTarget)].discrete))return Result::fail("Trim needs a continuous automation target and schema 32.");
+            if(c.automationTarget<-1||c.automationTarget>=automationTargetCount||c.length<=0||c.length>((int)root["schema"]>=25?maxClipLength(c):600.))return Result::fail("Invalid automation target or clip length.");
             if(c.isAutomation()){
+                if((int)root["schema"]<29&&c.automationTarget>5)return Result::fail("Extended automation needs project schema 29.");
+                if((int)root["schema"]<30&&c.automationTarget>=automationSwitchFirst)return Result::fail("Selector automation needs project schema 30.");
+                if((int)root["schema"]<31&&c.automationTarget>=118)return Result::fail("Master processing and mute automation need project schema 31.");
+                if((int)root["schema"]<35&&isAuxAutomation(c.automationTarget))return Result::fail("Auxiliary level automation needs project schema 35.");
                 auto* points=v["points"].getArray();
-                if((c.automationTarget!=5&&(c.automationTrack<0||c.automationTrack>=tracks->size()))||c.isAudio()||!points||points->size()<2||points->size()>maxAutomationPoints||++automationCount>maxAutomationClips||(totalPoints+=points->size())>maxTotalAutomationPoints)return Result::fail("Invalid or oversized automation clip.");
+                if(!validAutomationLink(c.automationTarget,c.automationTrack,tracks->size())||c.isAudio()||!points||points->size()<2||points->size()>maxAutomationPoints||++automationCount>maxAutomationClips||(totalPoints+=points->size())>maxTotalAutomationPoints)return Result::fail("Invalid or oversized automation clip.");
+                if(isSynthAutomation(c.automationTarget)&&p.tracks[(size_t)c.automationTrack].isBus)return Result::fail("Synth automation cannot target a bus.");
                 double previous=-1;
                 for(const auto& x:*points){double beat=value(x,"beat",-1),val=value(x,"value",-1);
                     if(!x.isObject()||beat<0||beat>600||beat<=previous||val<0||val>1)return Result::fail("Automation points must have increasing beats and values from 0 to 1.");

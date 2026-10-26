@@ -19,7 +19,7 @@ bool Studio::restoreHistoryState(int state,uint64_t expected,uint64_t generation
     int distance=state-(int)undoStack.size();if(distance==0)return true;
     releaseKeys();project=absoluteAssets(project,currentFile==File()?root:currentFile.getParentDirectory());
     auto result=moveProjectHistory(project,undoStack,redoStack,state);if(result.failed()){status=result.getErrorMessage();return false;}
-    ++historyGeneration;engine->resetRequested.store(true);selectedTrack=jlimit(0,(int)project.tracks.size()-1,selectedTrack);trackScroll=jlimit(0,jmax(0,(int)project.tracks.size()-8),trackScroll);selectedNote=-1;selectedNotes.clear();selectedClip=-1;selectedPoint=-1;pianoLow=-1;changed();
+    ++historyGeneration;selectedTrack=jlimit(0,(int)project.tracks.size()-1,selectedTrack);trackScroll=jlimit(0,jmax(0,(int)project.tracks.size()-8),trackScroll);selectedNote=-1;selectedNotes.clear();selectedClip=-1;selectedPoint=-1;pianoLow=-1;changed(false);publish(true);
     status=String(distance<0?"Undid ":"Redid ")+String(std::abs(distance))+" "+String(std::abs(distance)==1?"edit":"edits")+". Remaining history is available in Edit > Project edit history.";return true;
 }
 }

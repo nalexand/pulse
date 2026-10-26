@@ -6,6 +6,7 @@
 namespace pulse {
 using namespace juce;
 Result planRender(const Project& p,const RenderSettings& s,RenderPlan& plan){
+    if(s.rawTrack< -1||s.rawTrack>=(int)p.tracks.size()||(s.rawTrack>=0&&(p.tracks[(size_t)s.rawTrack].isBus||s.sampleRate!=48000||s.bits!=32||s.channels!=2||s.normalize||s.dither||s.format!=RenderFormat::wav)))return Result::fail("Invalid internal source-bounce settings.");
     if(p.tracks.empty()||p.patterns.empty()||p.activePattern<0||p.activePattern>=(int)p.patterns.size()||!std::isfinite(p.bpm)||p.bpm<30||p.bpm>300)return Result::fail("Invalid project timing for export.");
     if((s.format!=RenderFormat::wav&&s.format!=RenderFormat::flac)||(s.source!=RenderSource::current&&s.source!=RenderSource::song&&s.source!=RenderSource::pattern))return Result::fail("Unsupported export format or source.");
     if((s.sampleRate!=44100&&s.sampleRate!=48000&&s.sampleRate!=96000)||(s.bits!=16&&s.bits!=24&&s.bits!=32)||(s.channels!=1&&s.channels!=2)||(s.format==RenderFormat::flac&&s.bits==32))return Result::fail("Choose WAV 16/24/32-float or FLAC 16/24, mono/stereo, at 44.1/48/96 kHz.");
@@ -49,9 +50,9 @@ Result renderAudio(const Project& project,Assets& assets,const File& base,const 
     if(progress)progress->store(0);auto cancelled=[&]{return cancel&&cancel->load();};if(cancelled())return Result::fail("Export cancelled.");
     RenderPlan plan;auto result=planRender(project,settings,plan);if(result.failed())return result;
     if(onlyTrack< -1||onlyTrack>=(int)project.tracks.size())return Result::fail("Invalid isolated export track.");
-    auto renderer=std::make_unique<Engine>();auto p=project;p.songMode=plan.songMode;p.loop=false;p.metronome=false;
+    auto renderer=std::make_unique<Engine>();renderer->rawOutputTrack=settings.rawTrack;auto p=project;p.songMode=plan.songMode;p.loop=false;p.metronome=false;if(onlyTrack>=0)renderer->chokeTriggerMask=audibleChokeMask(p);
     if(onlyTrack>=0)for(int t=0;t<(int)p.tracks.size();++t){if(t==onlyTrack)p.tracks[(size_t)t].mute=false;p.tracks[(size_t)t].solo=t==onlyTrack;}
-    String warnings;auto& state=renderer->exchange.beginWrite();result=compilePlayback(p,assets,base,state,warnings);if(result.failed())return result;
+    String warnings;auto& state=renderer->exchange.beginWrite();result=compilePlayback(p,assets,base,state,warnings,true);if(result.failed())return result;
     if(warnings.isNotEmpty())return Result::fail("Export requires missing samples to be resolved:\n"+warnings);
     state.length=plan.endBeat;while(state.eventCount>0&&state.events[(size_t)state.eventCount-1].beat>=plan.endBeat)--state.eventCount;
     for(int i=0;i<state.eventCount;++i)state.events[(size_t)i].length=jmin(state.events[(size_t)i].length,plan.endBeat-state.events[(size_t)i].beat);
@@ -63,6 +64,7 @@ Result renderAudio(const Project& project,Assets& assets,const File& base,const 
             if(cancelled())return Result::fail("Export cancelled.");int count=(int)jmin((int64)512,total-pos);
             if(pos<plan.firstFrame)count=(int)jmin((int64)count,plan.firstFrame-pos);if(pos<plan.endFrame)count=(int)jmin((int64)count,plan.endFrame-pos);else renderer->playing.store(false);
             renderer->render(buffer.getWritePointer(0),buffer.getWritePointer(1),count);
+            for(int a=0;a<state.audioCount;++a)if(auto* stream=state.audio[(size_t)a].sample->stream.get())if(stream->failed())return Result::fail("Export stopped: a streamed Playlist source could not be read. The previous destination is retained.");
             if(pos>=plan.firstFrame){
                 if(settings.channels==1)for(int i=0;i<count;++i)buffer.setSample(0,i,(buffer.getSample(0,i)+buffer.getSample(1,i))*.5f);
                 for(int ch=0;ch<settings.channels;++ch)for(int i=0;i<count;++i)if(!std::isfinite(buffer.getSample(ch,i)))return Result::fail("Export stopped after non-finite audio. Check the source samples.");

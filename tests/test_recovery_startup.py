@@ -51,7 +51,7 @@ class RecoveryStartupChecks(unittest.TestCase):
                 saved["clips"] = [{"track": 0, "pattern": 0, "beat": 0, "length": 2,
                                    "audioPath": str(source), "sourceOffset": 0, "gain": .5,
                                    "fadeIn": .25, "fadeOut": .25, "fadeInCurve": 0, "fadeOutCurve": 0,
-                                   "automationTarget": -1, "automationTrack": -1, "points": []}]
+                                   "automationTarget": -1, "automationTrack": -1, "automationTrim": False, "points": []}]
                 (work / "saved.pulse").write_text(json.dumps(saved), encoding="utf-8")
             if retention is not None:
                 (data / "recovery-retention.json").write_text(json.dumps(retention), encoding="utf-8")
@@ -193,6 +193,8 @@ class RecoveryStartupChecks(unittest.TestCase):
         with self.session(last_saved=True, audio=True) as (work, proc, client, command):
             original = client.call("pulse_get_project")
             clip = original["project"]["clips"][0]
+            self.assertEqual(original["title"], "Last saved project")
+            self.assertEqual(clip["audioPath"], str(work / "original-input.wav"))
             source = (work / "original-input.wav").read_bytes()
             state = client.call("pulse_edit", expected_revision=original["revision"], operations=[{
                 "op": "set_audio_fades", "clip": 0, "fadeIn": .5, "fadeInCurve": 1,
@@ -210,7 +212,7 @@ class RecoveryStartupChecks(unittest.TestCase):
             self.assertEqual(client.call("pulse_get_project")["project"], changed["project"])
             saved = client.call("pulse_save_project", expected_revision=changed["revision"], name="Curved audio")
             written = json.loads(Path(saved["path"]).read_text(encoding="utf-8-sig"))
-            self.assertEqual(written["schema"], 18)
+            self.assertEqual(written["schema"], original["project"]["schema"])
             self.assertEqual(written["clips"][0]["fadeOutCurve"], 2)
             relative = Path(written["clips"][0]["audioPath"])
             self.assertFalse(relative.is_absolute())

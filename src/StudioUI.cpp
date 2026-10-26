@@ -80,7 +80,7 @@ void Studio::paintHeader(Graphics& g){
     button(g,">",{599,49,24,29},patternNext);button(g,"+",{626,49,26,29},patternAdd);
     float viewsX=664;button(g,"Playlist",{viewsX,49,69,29},arrangeTab,0,panes[playlistPane].visible);button(g,"Channel rack",{viewsX+72,49,89,29},composeTab,0,panes[rackPane].visible);
     button(g,"Piano roll",{viewsX+164,49,77,29},pianoOpen,selectedTrack,panes[pianoPane].visible);button(g,"Mixer",{viewsX+244,49,56,29},mixTab,0,panes[mixerPane].visible);
-    button(g,"Browser",{viewsX+303,49,62,29},browserToggle,0,browserVisible);button(g,"Audio",{viewsX+368,49,52,29},settings);
+    button(g,"Browser",{viewsX+303,49,62,29},browserToggle,0,browserVisible);button(g,automationWriteContext?"Pass...":"Audio",{viewsX+368,49,52,29},automationWriteContext?automationOpen:settings);
     button(g,audioRecordMode?"AUDIO":"NOTES",{1090,49,63,29},recordMode,0,audioRecordMode);
     if(getWidth()>1250)button(g,"REC setup",{1159,49,81,29},recordingOpen);
     g.setColour(Colour(0xff262f33));g.drawHorizontalLine(93,0,(float)getWidth());
@@ -123,7 +123,7 @@ void Studio::paintRack(Graphics& g,Rectangle<float> r){
     rackRect={gridX,r.getY()+30,gridW,visible*rowH};float groupGap=steps<=64?5.f:2.f,cell=(gridW-(groups-1)*groupGap)/(float)steps;if(cell<1.f){groupGap=0;cell=gridW/(float)steps;}
     for(int row=0;row<visible;++row){int t=trackScroll+row;float y=rackRect.getY()+row*rowH;const auto& tr=project.tracks[(size_t)t];
         g.setColour(t==selectedTrack?Colour(0xff505e60):Colour(0xff3c464b));fill(g,r.getX()+4,y,r.getWidth()-8,rowH-1);
-        g.setColour(tr.mute?Colour(0xff252e31):accent);g.fillEllipse(r.getX()+12,y+10,7,7);hits.push_back({{r.getX()+5,y,23,rowH},mute,t});
+        g.setColour(liveParameter(mute,t,tr.mute?1.f:0.f)>=.5f?Colour(0xff252e31):accent);g.fillEllipse(r.getX()+12,y+10,7,7);hits.push_back({{r.getX()+5,y,23,rowH},mute,t});
         rotary(g,{r.getX()+31,y+2,23,23},panDial,(tr.pan+1)/2,t);rotary(g,{r.getX()+58,y+2,23,23},volumeDial,tr.volume/1.5f,t);
         panel(g,{r.getX()+87,y+4,27,19},Colour(0xff2d373c));label(g,String(t+1),{r.getX()+87,y+4,27,19},10,muted,false,Justification::centred);hits.push_back({{r.getX()+87,y+4,27,19},trackSelect,t});
         button(g,tr.name,{r.getX()+121,y+3,98,22},channelOpen,t,t==selectedTrack);
@@ -212,18 +212,18 @@ void Studio::paintArrangement(Graphics& g,Rectangle<float> r){
         bool coloured=!c.isAudio()&&!c.isAutomation();Colour patColour=coloured?patternColor(c.pattern):Colour(0xff7d927b);
         panel(g,cr,selected.count(i)?Colour(0xff697555):c.isAutomation()?Colour(0xff716451):c.isAudio()?Colour(0xff4b646b):coloured?patColour.darker(.52f):Colour(0xff53635a));
         g.setColour(c.isAutomation()?Colour(0xffad946d):c.isAudio()?Colour(0xff809da4):patColour);fill(g,cr.withHeight(15));
-        label(g,c.isAutomation()?automationName((AutomationTarget)c.automationTarget):c.isAudio()?File(c.audioPath).getFileNameWithoutExtension():project.patterns[(size_t)c.pattern].name,cr.reduced(4,0).withHeight(15),9,Colour(0xff202b24));
+        label(g,c.isAutomation()?(c.automationTrim?String("Trim / "):String())+automationName((AutomationTarget)c.automationTarget):c.isAudio()?File(c.audioPath).getFileNameWithoutExtension():project.patterns[(size_t)c.pattern].name,cr.reduced(4,0).withHeight(15),9,Colour(0xff202b24));
         if(c.isAutomation()){
             Path curve;float start=jmax(cr.getX(),arrangeRect.getX()),end=jmin(cr.getRight(),arrangeRect.getRight());
             for(float x=start;x<=end;x+=2){double local=(x-cr.getX())/cr.getWidth()*c.length;float y=cr.getBottom()-3-automationValue(c.points.data(),(int)c.points.size(),local)*jmax(2.f,cr.getHeight()-21);if(x==start)curve.startNewSubPath(x,y);else curve.lineTo(x,y);}
             g.setColour(Colour(0xffe0c594));g.strokePath(curve,PathStrokeType(1.3f));
         }else if(c.isAudio()){
             int sourceIndex=i;if(groupPreview&&playlistDragCopy)for(size_t n=0;n<playlistDragStats.resultIndices.size();++n)if(playlistDragStats.resultIndices[n]==i)sourceIndex=playlistDragStats.sourceIndices[n];
-            if(auto* sample=clipSamples[(size_t)sourceIndex]){float centre=cr.getY()+15+(cr.getHeight()-15)*.5f;float amplitude=(cr.getHeight()-18)*.5f;
+            if(const auto& sample=clipSamples[(size_t)sourceIndex]){float centre=cr.getY()+15+(cr.getHeight()-15)*.5f;float amplitude=(cr.getHeight()-18)*.5f;
                 float first=jmax(cr.getX(),arrangeRect.getX()),last=jmin(cr.getRight(),arrangeRect.getRight());g.setColour(Colour(0xffbdd4d7));
-                for(float x=first;x<last;x+=2){double local=(x-cr.getX())/cr.getWidth()*c.length;int start=(int)((c.sourceOffset+local*60/project.bpm)*sample->sampleRate);int span=jmax(1,(int)(2/beatW*60/project.bpm*sample->sampleRate));float peak=0;
-                    for(int k=start;k<jmin(start+span,sample->audio.getNumSamples());k+=jmax(1,span/48))if(k>=0)peak=jmax(peak,std::abs(sample->audio.getSample(0,k)),std::abs(sample->audio.getSample(1,k)));
+                for(float x=first;x<last;x+=2){double local=(x-cr.getX())/cr.getWidth()*c.length;int start=(int)((c.sourceOffset+local*60/project.bpm)*sample->sampleRate);int span=jmax(1,(int)(2/beatW*60/project.bpm*sample->sampleRate));float peak=sample->waveformPeak(start,span);
                     g.drawVerticalLine((int)x,centre-jmin(1.f,peak*c.gain)*amplitude,centre+jmin(1.f,peak*c.gain)*amplitude+1);}
+                if(sample->stream)label(g,sample->stream->failed()?"Audio read error":sample->stream->waveformReady()?"Streamed":"Streaming / waveform loading",cr.withTrimmedTop(16).reduced(4).withHeight(12),9,sample->stream->failed()?orange:text);
                 g.setColour(Colour(0xffffce89));if(c.fadeIn>0)drawAudioFade(g,cr.getX(),cr.getY()+16,(float)c.fadeIn*beatW,cr.getHeight()-16,c.fadeInCurve,true);
                 if(c.fadeOut>0)drawAudioFade(g,cr.getRight()-(float)c.fadeOut*beatW,cr.getY()+16,(float)c.fadeOut*beatW,cr.getHeight()-16,c.fadeOutCurve,false);
             }else label(g,"Missing audio",cr.withTrimmedTop(16).reduced(4),9,orange);
@@ -251,7 +251,7 @@ void Studio::paintMixer(Graphics& g,Rectangle<float> r){
         panel(g,{x,top,stripW-2,bottom-top},selected?Colour(0xff59665d):Colour(0xff455258));
         label(g,master?"Master":String(index),{x+3,top+1,stripW-8,15},10,master?orange:text,true,Justification::centred);
         label(g,master?"":project.tracks[(size_t)t].name,{x+3,top+17,stripW-8,16},9,text,false,Justification::centred);hits.push_back({{x,top,stripW-3,34},master?masterEffectsOpen:trackSelect,t});
-        if(!master){g.setColour(project.tracks[(size_t)t].mute?border:accent);g.fillEllipse(x+stripW/2-3,top+38,6,6);hits.push_back({{x+8,top+34,stripW-18,15},mute,t});}
+        if(!master){g.setColour(liveParameter(mute,t,project.tracks[(size_t)t].mute?1.f:0.f)>=.5f?border:accent);g.fillEllipse(x+stripW/2-3,top+38,6,6);hits.push_back({{x+8,top+34,stripW-18,15},mute,t});}
         rotary(g,{x+stripW/2-11,top+52,22,22},master?masterDial:panDial,master?project.master:(project.tracks[(size_t)t].pan+1)/2,master?0:t,col);
         float fy=top+85,fh=jmax(35.f,bottom-fy-41);float faderX=x+stripW*.40f;g.setColour(border);fill(g,faderX-2,fy,4,fh);
         for(int db=0;db<6;++db){float y=fy+db*fh/5;g.setColour(muted.withAlpha(.2f));g.drawHorizontalLine((int)y,x+6,x+stripW-15);}
@@ -268,19 +268,19 @@ void Studio::paintMixer(Graphics& g,Rectangle<float> r){
     label(g,editingMasterEffects()?String("Master"):project.tracks[(size_t)selectedTrack].name,{fx+9,r.getY()+3,effectW-75,19},12,text,true);
     button(g,"+ Bus",{r.getRight()-66,r.getY()+3,56,21},addBus);
     label(g,"Effect slots",{fx+9,r.getY()+24,effectW-20,14},9,muted);
-    const auto& tr=project.tracks[(size_t)selectedTrack];const bool master=editingMasterEffects();const auto& mixer=effectMixer(effectTarget());
-    for(int slot=0;slot<6;++slot){int effect=mixer.order[(size_t)slot];float y=r.getY()+43+slot*23;bool enabled=effect==0?mixer.eq:effect==1?mixer.compressor:effect==2?mixer.reverb:effect==3?mixer.chorus.enabled:effect==4?mixer.flanger.enabled:mixer.phaser.enabled;
-        button(g,String(slot+1)+"  "+(effect==1?dynamicsName(mixer.dynamics.mode):effectName(effect)),{fx+9,y,effectW-43,20},master?masterInsertsOpen:effectsOpen,effect);button(g,enabled?"o":"-",{r.getRight()-30,y,20,20},effectToggle,effect,enabled);}
-    if(master)dial(g,"Delay return",{fx+7,r.getY()+183,effectW-19,30},masterDelayReturn,project.delayReturn,-1);else dial(g,"Delay send",{fx+7,r.getY()+183,effectW-19,30},sendDial,tr.send/.8f,selectedTrack);
-    if(master)button(g,"Master processing...",{fx+10,r.getY()+218,effectW-26,23},masterEffectsOpen);else button(g,"Out: "+(tr.mixer.output<0?String("Master"):project.tracks[(size_t)tr.mixer.output].name),{fx+10,r.getY()+218,effectW-26,23},outputRoute);
+    const auto& tr=project.tracks[(size_t)selectedTrack];const bool master=editingMasterEffects();const auto mixer=displayedEffectMixer(effectTarget());
+    for(int slot=0;slot<builtinEffectCount;++slot){int effect=mixer.order[(size_t)slot];float y=r.getY()+43+slot*21;bool enabled=effect==0?mixer.eq:effect==1?mixer.compressor:effect==2?mixer.reverb:effect==3?mixer.chorus.enabled:effect==4?mixer.flanger.enabled:effect==5?mixer.phaser.enabled:effect==6?mixer.delay.enabled:mixer.distortion.enabled;
+        button(g,String(slot+1)+"  "+(effect==1?dynamicsName(mixer.dynamics.mode):effectName(effect)),{fx+9,y,effectW-43,18},master?masterInsertsOpen:effectsOpen,effect);button(g,enabled?"o":"-",{r.getRight()-30,y,20,18},effectToggle,effect,enabled);}
+    if(master)button(g,"Master processing...",{fx+10,r.getY()+218,effectW-26,23},masterEffectsOpen);else{button(g,"Out: "+(tr.mixer.output<0?String("Master"):project.tracks[(size_t)tr.mixer.output].name),{fx+10,r.getY()+218,effectW-90,23},outputRoute);button(g,"Sends",{r.getRight()-73,r.getY()+218,57,23},auxLevelsOpen);}
     button(g,"Analyzer",{fx+10,r.getY()+244,(effectW-32)/2,20},master?analyzerMaster:analyzerOpen);button(g,"Stereo...",{fx+16+(effectW-32)/2,r.getY()+244,(effectW-32)/2,20},master?masterStereoOpen:stereoOpen);
-    if(master)button(g,"Insert effects...",{fx+10,r.getBottom()-30,effectW-26,23},masterInsertsOpen,selectedEffect==6?0:selectedEffect);else button(g,"Channel settings",{fx+10,r.getBottom()-30,effectW-26,23},channelOpen,selectedTrack);
+    if(master)button(g,"Insert effects...",{fx+10,r.getBottom()-30,effectW-26,23},masterInsertsOpen,selectedEffect==8?0:selectedEffect);else button(g,"Channel settings",{fx+10,r.getBottom()-30,effectW-26,23},channelOpen,selectedTrack);
 
 }
 void Studio::paintChannel(Graphics& g,Rectangle<float> r){
     g.setColour(surface);fill(g,r);const auto& tr=project.tracks[(size_t)selectedTrack];
-    label(g,instrumentName(tr.instrument),{r.getX()+13,r.getY()+7,r.getWidth()-120,24},15,text,true);button(g,"Load sample",{r.getRight()-105,r.getY()+8,94,24},importSample);
-    auto* sample=previewSamples[(size_t)selectedTrack];Rectangle<float> wave{r.getX()+13,r.getY()+44,r.getWidth()-26,66};panel(g,wave,Colour(0xff273237));
+    label(g,instrumentName(tr.instrument),{r.getX()+13,r.getY()+7,r.getWidth()-245,24},15,text,true);button(g,"Load sample",{r.getRight()-105,r.getY()+8,94,24},importSample);
+    button(g,tr.chokeGroup?"Choke group: "+String(tr.chokeGroup)+"...":String("Choke: Off..."),{r.getRight()-222,r.getY()+8,112,24},chokeGroupOpen);
+    const auto& sample=previewSamples[(size_t)selectedTrack];Rectangle<float> wave{r.getX()+13,r.getY()+44,r.getWidth()-26,66};panel(g,wave,Colour(0xff273237));
     if(sample){Path p;int size=sample->audio.getNumSamples();for(int i=0;i<(int)wave.getWidth();++i){int frame=(int)((double)i/wave.getWidth()*size);float value=sample->audio.getSample(0,jlimit(0,size-1,frame));float x=wave.getX()+i,y=wave.getCentreY()-value*wave.getHeight()*.44f;if(i==0)p.startNewSubPath(x,y);else p.lineTo(x,y);}g.setColour(accent);g.strokePath(p,PathStrokeType(1));}
     else{label(g,tr.instrument==Instrument::sample?"No sample loaded - click Load sample":"Synthesized instrument",wave.reduced(10,0),12,muted,false,Justification::centred);}
     if(sample){button(g,"Edit sample range...",{r.getX()+13,r.getY()+113,145,23},waveformOpen,1);button(g,"Tune: "+samplerNoteName(tr.sampleRoot)+" / "+String(tr.sampleTune,1)+" c",{r.getX()+164,r.getY()+113,r.getWidth()-177,23},samplerTuningOpen);}
@@ -289,9 +289,10 @@ void Studio::paintChannel(Graphics& g,Rectangle<float> r){
     dial(g,"Volume",{r.getX()+14,y,w,32},volumeDial,tr.volume/1.5f,selectedTrack);dial(g,"Pan",{r.getX()+29+w,y,w,32},panDial,(tr.pan+1)/2,selectedTrack);
     dial(g,"Attack "+String(tr.attack*1000,0)+" ms",{r.getX()+14,y+43,w,32},attackDial,(float)(std::log(tr.attack/.001f)/std::log(2000.)),selectedTrack);
     dial(g,"Release "+String(tr.release*1000,0)+" ms",{r.getX()+29+w,y+43,w,32},releaseDial,(float)(std::log(tr.release/.02f)/std::log(150.)),selectedTrack);
-    dial(g,"Tone filter",{r.getX()+14,y+86,w,32},cutoffDial,(float)(std::log(tr.cutoff/60)/std::log(20000./60)),selectedTrack);dial(g,"Delay send",{r.getX()+29+w,y+86,w,32},sendDial,tr.send/.8f,selectedTrack);
+    dial(g,"Tone filter",{r.getX()+14,y+86,w,32},cutoffDial,(float)(std::log(tr.cutoff/60)/std::log(20000./60)),selectedTrack);dial(g,"Legacy delay send",{r.getX()+29+w,y+86,w,32},sendDial,tr.send/.8f,selectedTrack);
     if(auto* n=note()){label(g,"Note: "+pitchName(n->pitch),{r.getX()+14,y+129,140,17},10,text);dial(g,"Velocity",{r.getX()+14,y+151,w,31},noteVelocity,n->velocity);dial(g,"Chance",{r.getX()+29+w,y+151,w,31},noteProbability,n->probability);label(g,"Ratchets: "+String(n->ratchets)+" (wheel)",{r.getX()+14,y+187,220,19},10,muted);hits.push_back({{r.getX()+14,y+185,220,23},noteRatchet});button(g,"Repeat: "+(n->conditionEvery==1?String("Always"):String(n->conditionStep)+" of "+String(n->conditionEvery))+"...",{r.getX()+14,y+212,r.getWidth()-28,24},noteConditionOpen);}
     else button(g,"Open piano roll",{r.getX()+14,y+132,128,24},pianoOpen,selectedTrack);
+
 }
 void Studio::paintInspector(Graphics&){ }
 }

@@ -51,11 +51,14 @@ void Studio::paintProjectAssets(Graphics& g,Rectangle<float> r){
     button(g,"Apply unique matches",{x+281,y,143,25},assetApplyMatches);button(g,"Choose match",{x+429,y,99,25},assetChooseMatch);
     button(g,engine->previewPlaying.load()?"Stop":"Preview",{x+533,y,64,25},assetPreview);button(g,"Edit",{x+602,y,44,25},assetEdit);
     button(g,"Cancel",{x+651,y,52,25},assetCancelScan);
-    label(g,assetMessage,{x,y+31,r.getWidth()-20,21},11,assetBusy?warning:muted);
+    auto cache=assets.statistics();auto mib=[](uint64_t bytes){return String(bytes/(1024.*1024.),1);};
+    String memory="Cache "+mib(cache.resident)+" / "+mib(cache.limit)+" MiB; in use "+mib(cache.pinned)+"; reclaimable "+mib(cache.reclaimable)+"; evicted "+String(cache.evictions);
+    label(g,memory,{x,y+31,r.getWidth()-20,21},11,muted);
+    label(g,assetMessage,{x,y+53,r.getWidth()-20,21},11,assetBusy?warning:muted);
     float statusX=r.getRight()-225,usedX=r.getRight()-300;
-    g.setColour(Colour(0xff4b585e));g.fillRect(Rectangle<float>(x,y+58,r.getWidth()-20,23));
-    label(g,"Referenced audio",{x+7,y+58,r.getWidth()-330,23},11,text,true);label(g,"Uses",{usedX,y+58,58,23},11,text);label(g,"Status",{statusX,y+58,211,23},11,text,true);
-    assetListRect={x,y+83,r.getWidth()-20,jmax(40.f,r.getHeight()-230)};
+    g.setColour(Colour(0xff4b585e));g.fillRect(Rectangle<float>(x,y+80,r.getWidth()-20,23));
+    label(g,"Referenced audio",{x+7,y+80,r.getWidth()-330,23},11,text,true);label(g,"Uses",{usedX,y+80,58,23},11,text);label(g,"Status",{statusX,y+80,211,23},11,text,true);
+    assetListRect={x,y+105,r.getWidth()-20,jmax(40.f,r.getHeight()-252)};
     g.saveState();g.reduceClipRegion(assetListRect.toNearestInt());
     int visible=jmax(1,(int)(assetListRect.getHeight()/29));
     for(int row=0;row<visible&&assetScroll+row<(int)assetRows.size();++row){int index=assetScroll+row;auto& item=assetRows[(size_t)index];float top=assetListRect.getY()+row*29;
@@ -91,7 +94,7 @@ bool Studio::performAssetAction(int action,int data){
     if(action==assetLocate){chooser=std::make_unique<FileChooser>("Locate replacement for "+(item.file==File()?String("empty sampler"):item.file.getFileName()),item.file==File()?root:item.file.getParentDirectory(),"*.wav;*.aif;*.aiff;*.flac;*.ogg",true);auto safe=Component::SafePointer<Studio>(this);chooser->launchAsync(FileBrowserComponent::openMode|FileBrowserComponent::canSelectFiles,[safe,item,expected](const FileChooser& fc){if(!safe||fc.getResult()==File())return;if(safe->assetGeneration!=expected){safe->status="Project changed. Refresh references and choose the file again.";return;}safe->applyAssetReplacements({{item.key,fc.getResult()}});safe->repaint();});}
     else if(action==assetChooseMatch){PopupMenu menu;for(int i=0;i<(int)item.candidates.size();++i)menu.addItem(i+1,item.candidates[(size_t)i].getFullPathName());if(item.candidates.empty()){status="Search a folder to find possible replacements.";return true;}auto safe=Component::SafePointer<Studio>(this);menu.showMenuAsync(menuOptions(),[safe,item,expected](int r){if(!safe||r<=0||r>(int)item.candidates.size())return;if(safe->assetGeneration!=expected){safe->status="Project changed. Refresh the audio-file list.";return;}safe->applyAssetReplacements({{item.key,item.candidates[(size_t)r-1]}});safe->repaint();});}
     else{File file=item.issue==AssetIssue::ready?item.file:item.candidates.size()==1?item.candidates[0]:File();if(file==File()){status="Locate a file or choose an unambiguous match first.";return true;}
-        if(action==assetEdit)openWaveform(file);else if(action==assetPreview&&engine->previewPlaying.load())engine->preview(nullptr);else if(action==assetPreview&&audioReady()){String error;auto* source=assets.load(file,error);if(source)engine->preview(source);else status=error;}}
+        if(action==assetEdit)openWaveform(file);else if(action==assetPreview&&engine->previewPlaying.load())engine->preview(nullptr);else if(action==assetPreview&&audioReady()){String error;auto source=assets.load(file,error);if(source)engine->preview(source);else status=error;}}
     return true;
 }
 }

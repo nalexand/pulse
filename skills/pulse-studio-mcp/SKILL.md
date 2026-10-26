@@ -7,7 +7,7 @@ description: Compose, edit, design sounds, arrange, play, save and export music 
 
 Control the actual open Pulse Studio workstation, not a project JSON file behind it. This skill is model/client independent: use the tools exposed by your MCP host. A host may prefix names with its server namespace; the underlying tool names are `pulse_status`, `pulse_edit`, etc. No source-code reading is needed.
 
-Read [the connection and API reference](references/api.md) for setup, exact operation fields/ranges, units, routing, error recovery and a complete composition example. Read it before your first composition or when constructing an unfamiliar operation. It describes Pulse Studio 0.76.0 with twelve tools (the eleven-tool base from 0.31 plus offline mix analysis). Audio fade authoring requires app/server 0.54+ and an existing native audio clip; use `set_audio_fades` with a fresh clip index and revision, preserving every unspecified field. Current project writes use schema 25; schemas 1-16 gain neutral harmonic defaults, and schemas 1-15 migrate missing fade shapes to Linear. The optional pattern colour field requires app/server 0.34+; omit it for older versions. section_clips requires app/server 0.36+ and whole clips inside the section; extract_notes and merge_patterns require app/server 0.35+; use fresh lane indices and inspect appended results before retrying a timeout.
+Read [the connection and API reference](references/api.md) for setup, exact operation fields/ranges, units, routing, error recovery and a complete composition example. Read it before your first composition or when constructing an unfamiliar operation. It describes Pulse Studio 0.95.0 with twelve tools (the eleven-tool base from 0.31 plus offline mix analysis). Audio fade authoring requires app/server 0.54+ and an existing native audio clip; use `set_audio_fades` with a fresh clip index and revision, preserving every unspecified field. Current project writes use schema 35; schemas 1–34 with supported instruments remain readable; schemas 1-16 gain neutral harmonic defaults, and schemas 1-15 migrate missing fade shapes to Linear. The optional pattern colour field requires app/server 0.34+; omit it for older versions. section_clips requires app/server 0.36+ and whole clips inside the section; extract_notes and merge_patterns require app/server 0.35+; use fresh lane indices and inspect appended results before retrying a timeout.
 
 ## Essential workflow
 
@@ -88,7 +88,7 @@ Create a clip by right-clicking a mixer volume, pan, cutoff, drive, send or mast
 
 The graph previews the draft without changing playback, the song revision or Undo. **Apply** replaces only that clip's points as one Undo; **Cancel** keeps the original curve. A successful Apply remembers the controls for this app session. Generated points, including endpoints and shape metadata, are the saved musical result: they remain editable and reproduce the same seeded curve in playback, export, recovery and templates. Generator settings are not a persistent live modulation processor. Change the draft and Apply again to regenerate. Increase period or reduce resolution if the result exceeds 256 points; the whole project remains limited to 64 automation clips / 4096 points. Invalid values, recording, pending note previews and stale clip/revision callbacks retain existing data.
 
-**TOOLS** and **Ctrl+P** also expose Automation segment shape and Generate automation curve. Song mode plays these six existing mixer targets; synth/plugin/tempo targets, read/touch/latch/write recording, modulation routing and personal generator preset catalogs remain pending.
+**TOOLS** and **Ctrl+P** also expose Automation segment shape and Generate automation curve. Song mode plays 126 channel/synth/effect/Master/auxiliary targets. Dedicated Touch/Latch passes are available; full multi-control Write/Trim recording, plugin/tempo targets, modulation routing and personal generator preset catalogs remain pending.
 
 Automation segment metadata was introduced with **schema 18**; current writes use schema 23, reading schemas 1-22. Legacy segments gain neutral Linear/tension-zero defaults and retain their previous audio. Modern points save required `curve` (0 Linear, 1 Smooth, 2 Ease in, 3 Ease out), `tension` (-1..1) and `hold` (boolean); Hold takes precedence. Curved content cannot be mislabeled as an older schema. Keep old project/History backups for apps before 0.58.
 
@@ -145,7 +145,7 @@ Compressor fields: threshold -60..0 dB, ratio 1..20, attack 0.1..100 ms, release
 Example operations in a fresh-revision `pulse_edit` batch:
 
 ```json
-[{"op":"set_song","masterEffects":{"eq":{"low":-1,"mid":0,"high":1},"compressor":{"threshold":-18,"ratio":2,"attack":25,"release":180,"makeup":0},"order":[0,1,2,3,4,5]}}]
+[{"op":"set_song","masterEffects":{"eq":{"low":-1,"mid":0,"high":1},"compressor":{"threshold":-18,"ratio":2,"attack":25,"release":180,"makeup":0},"order":[0,1,2,3,4,5,6,7]}}]
 ```
 
 For a fully dry Master through MCP, set masterSoftClip false and delayReturn 0 and explicitly bypass eq/compressor/reverb/chorus/flanger/phaser/stereo in masterEffects. This preserves their values and source/bus processing. Read back, save and verify asynchronous export completion as usual. Master-level automation still uses existing target 5; it does not automate the inserts.
@@ -184,7 +184,7 @@ Source and bus Compressor/Gate/Expander can use the existing external detector r
 MCP keeps eleven tools. In a revision-checked `pulse_edit`, `set_track.effects.compressor` and `set_song.masterEffects.compressor` add `mode` (string `compressor`, `limiter`, `gate`, `expander`), `range` 0..96 dB, `hysteresis` 0..24 dB, `hold` 0..1000 ms and `knee` 0..24 dB. Defaults: compressor, 60, 6, 50, 0. Existing threshold/ratio/attack/release/makeup/enabled fields retain their units and meanings; supplying a group enables it unless `enabled:false`. Omitted properties retain their values. Example for an existing Master:
 
 ```json
-{"op":"set_song","masterEffects":{"compressor":{"mode":"limiter","threshold":-1,"makeup":0,"release":100},"order":[0,2,3,4,5,1],"stereo":{"enabled":false}},"master":1,"masterSoftClip":false}
+{"op":"set_song","masterEffects":{"compressor":{"mode":"limiter","threshold":-1,"makeup":0,"release":100},"order":[0,2,3,4,5,1,6,7],"stereo":{"enabled":false}},"master":1,"masterSoftClip":false}
 ```
 
 Read a fresh revision, inspect existing state, and preserve intentional downstream settings rather than copying example values blindly. Read back `project.masterEffects.chain.settings.dynamics` or `project.tracks[index].mixer.dynamics`: serialized modes are integers 0 compressor, 1 limiter, 2 gate, 3 expander, with numeric range/hysteresis/hold/knee. The persisted shape differs from the partial MCP edit shape. Invalid fields reject the whole batch; native dialogs also reject stale revisions, changed targets, recording and pending note previews.
@@ -315,3 +315,209 @@ Limits: 16 nonblank commands per atomic edit, 4096 characters per text operation
 
 The parser operates offline through normal validated project edits. It does not interpret arbitrary prose, run code, access arbitrary files, export audio, start transport, invoke an LLM, or change the project schema. Use the normal export and transport controls. The local MCP API supports the same commands and an explicit read-only edit preview; see the guarded sequence above. Wider language coverage and optional local language models remain future work.
 
+
+
+Pulse Granular was removed in 0.79. There are 72 factory sounds. Do not request instrument `granular` or `synth.granular`; both are rejected. Read the removal/compatibility section in the reference for legacy projects and hidden catalog preservation.
+
+
+## 0.80 Delay and Distortion (current)
+
+Restart both app and server. Twelve tools remain. Current projects write schema **28**; supported older schemas through **27** remain readable. Ordered insert IDs are now `0 EQ, 1 Dynamics, 2 Reverb, 3 Chorus, 4 Flanger, 5 Phaser, 6 Delay, 7 Distortion`. An authored `order` must contain all eight unique IDs exactly once. Saved six-slot legacy orders append bypassed IDs 6 and 7.
+
+`set_track.effects.delay` and `set_song.masterEffects.delay` accept partial objects: `enabled` boolean; `repeats` integer 1–16; `interval` milliseconds 20–1000; `fade` fraction 0–1; `mix` fraction 0–1. Supplying an effect object defaults `enabled` to true unless explicitly false, preserving unspecified numeric values. Each echo is spaced by `interval`; the first has unit wet gain and repeat k has gain `(1-fade)^(k-1)`. The dry/wet crossfade is controlled by `mix`. No extra feedback repeats occur. Count, interval or bypass changes clear old echo history. At 120 BPM 250 ms is an eighth note. Set the export tail to at least count × interval if the last source sound is at the export boundary; maximum echo span is 16 seconds.
+
+`distortion` accepts `enabled` boolean and `mode` integer **0 Soft/tube, 1 Hard clip, 2 Fuzz** plus `drive` dB 0–48, `lowCut` Hz 20–1000, `tone` Hz 800–12000, `presence` dB -12–12, `asymmetry` 0–1, `cabinet` 0–1, `mix` 0–1 and `output` dB -24–6. Cabinet is a colour filter, not an IR loader. For a guitar-like tone, choose `physical` preset `Cedar string` or a native-loaded guitar sample, then apply these settings. This changes processing, not the source instrument or notes. Reorder Distortion before Delay for clean repeats of the distorted source. The legacy `params.send`, `delayReturn` and `delayFeedback` still control the old shared ping-pong effect independently; set sends to zero when only the new inserts should be heard.
+
+Example operation (use a fresh actual revision with `pulse_edit`):
+
+```json
+{"op":"set_track","track":7,"effects":{"order":[0,1,2,3,4,5,7,6],"distortion":{"enabled":true,"mode":0,"drive":22,"lowCut":100,"tone":5500,"presence":2,"asymmetry":0.15,"cabinet":0.8,"mix":1,"output":-8},"delay":{"enabled":true,"repeats":4,"interval":250,"fade":0.4,"mix":0.25}},"params":{"send":0}}
+```
+
+Read the project back to verify the resulting `tracks[7].mixer.delay` / `.distortion` and order; Master settings appear inside `project.masterEffects.chain.settings`. Partial edits, preview, strict validation and one Undo per committed batch follow the existing contract. There is no new sample-loading tool. Granular remains removed.
+
+
+## 0.81 parameter automation (current)
+
+The native app and server must both be 0.81.0+. Current projects write schema **29**, reading older supported songs through schema 28. The existing twelve tool names remain. IDs 0–5 keep their original meaning. No tutorials are being written yet; the Windows release gates and final tutorial step are in `V1_RELEASE_PLAN.md`.
+
+Call `pulse_get_project` and read **automationParameters** before constructing an unfamiliar curve. It is a 101-entry list with `id`, stable `key`, `name`, `group`, `minimum`, `maximum`, `unit`, `logarithmic`, `discrete` and `master`. Synth entries also list applicable numeric `instruments`: 9 Analog, 10 FM, 11 Wavetable, 12 Additive, 13 Resonator; amplitude fields can also apply to legacy pitched/sample sources 5–8. Engine-specific curves are retained but dormant when the selected instrument does not use the field. Synth targets cannot address buses or Master.
+
+| IDs | Parameter family |
+| --- | --- |
+| 0–5 | Existing volume, pan, tone filter, channel saturation, legacy send, Master volume |
+| 6–9 | `delay.repeats`, `delay.interval`, `delay.fade`, `delay.mix` |
+| 10–17 | `distortion.drive`, `.lowCut`, `.tone`, `.presence`, `.asymmetry`, `.cabinet`, `.mix`, `.output` |
+| 18–28 | EQ low/mid/high; compressor threshold/ratio/attack/release/makeup; reverb mix/room/damping |
+| 29–34 | Chorus mix/rate/depth/delay/feedback/width |
+| 35–40 | Flanger mix/rate/depth/centre/feedback/width |
+| 41–46 | Phaser mix/rate/depth/centre/feedback/width |
+| 47–48 | Stereo width/trim |
+| 49–52 | Dynamics range/hysteresis/hold/knee |
+| 53–100 | Existing 48 synth editor parameters: shared oscillator/envelope/filter/LFO/FM/wavetable values, sixteen harmonics and seven physical-model fields |
+
+`add_automation.target` accepts the discovered stable **string key** or numeric ID 0–100. Saved projects store numeric IDs. `track` remains the zero-based **Playlist lane**. `targetTrack` is the zero-based **processing channel**, independently of the lane; use **-1** for Master volume or Master-capable effect values (IDs 6–52). Source-only targets 0–4 and synth targets 53–100 cannot address Master. Unknown keys, fractional IDs, invalid destinations, malformed curves and budget overflow reject the entire edit batch.
+
+Point values remain normalized **0–1**, not Hz/dB/ms. For a descriptor `(low, high)`, a linear real value is `low+(high-low)*value`; logarithmic is `low*(high/low)^value`. Discrete values are rounded to integer real units; use held/step segments for deliberate count/family/model changes. Existing point curves/tension, replacement and deterministic generation work unchanged. Supplying a curve does not enable a bypassed effect or replace the static patch. Enable the required effect separately with `set_track.effects` / `set_song.masterEffects`. Song playback evaluates the curve; outside its span and after Stop, the saved static value is restored. Later overlapping Playlist entries win for the same destination.
+
+Example operations (use one fresh `expected_revision`, preview if desired):
+
+```json
+[
+  {"op":"set_track","track":7,"effects":{"distortion":{"enabled":true,"drive":18}}},
+  {"op":"add_automation","track":7,"target":"synth.cutoff","targetTrack":7,"beat":0,"length":8,"points":[{"beat":0,"value":0.9},{"beat":8,"value":0.25,"curve":2}]},
+  {"op":"add_automation","track":6,"target":"distortion.drive","targetTrack":7,"beat":0,"length":8,"points":[{"beat":0,"value":0.2},{"beat":8,"value":0.75}]},
+  {"op":"add_automation","track":5,"target":"reverb.mix","targetTrack":-1,"beat":0,"length":8,"points":[{"beat":0,"value":0.1},{"beat":8,"value":0.3}]}
+]
+```
+
+During Song playback `pulse_status` / `pulse_get_project` include **automationReadouts**, a list of currently active values with `target`, `key`, destination `track` (-1 Master), normalized `value` and real-unit `actualValue`. These are callback observations, not committed project edits. Look up the corresponding descriptor's `unit`. The list clears when stopped; the serialized project keeps static settings plus the curve. Native knob readouts use the same values. Read revised project/revision after a successful edit; do not write project JSON behind the application.
+
+Synth parameter targets are evaluated per sample and retain the existing voice control/smoothing behavior. Cached effect updates run on a fixed 16-sample control grid, independent of callback size. Automated delay count/time changes preserve history, and interval sweeps interpolate/smooth the reads, with the expected pitch changes. Manual delay edits keep the earlier clear-history behavior. Live/offline rendering shares this path. The existing 64-clip / 256-point-per-clip / 4096-total-point limits remain. Waveform/bypass/mode selectors and dedicated Touch/Latch passes are available. Multi-control Write/Trim recording, tempo maps and plugin parameters are still pending; do not invent unsupported targets.
+
+## Decoded audio memory status (0.82)
+
+`pulse_status` and `pulse_get_project` include `decodedAudioCache`: `limitBytes`, `residentBytes`, `pinnedBytes`, `reclaimableBytes`, `availableBytes`, `files`, `evictions`. These are decoded stereo-float cache bytes, not total process memory or raw file sizes. `residentBytes = pinnedBytes + reclaimableBytes`; `availableBytes = limitBytes - pinnedBytes`. Unused least-recently-used sources are evicted on native loads under pressure, without deleting source files. Playing/pending snapshots, open editors and queued/active previews retain immutable leases. Prior playback snapshots can remain briefly pinned during publication. No new MCP write command, permission or schema is required. Continue reading revision before musical writes. Native app 0.82+ is needed for these optional status fields; earlier apps omit them. Samplers/editors retain the decoded budget and synchronous loads; native 0.84+ streams long Playlist audio (see below).
+
+## Audio callback/device diagnostics (0.83)
+
+Native 0.83+ adds read-only `audioHealth` to `pulse_status` / `pulse_get_project` and `data/runtime.json`. Earlier apps omit this optional block. No new tool/write operation is added. Fields: schema=1, consistent, running, measurement, resetPending, deviceStarts/deviceStops, callbacks, frames, deadlineMisses, lateCallbackStarts, estimatedMissingBlocks, invalidBlocks, clockErrors, silentCallbacks, lastCallbackMs, meanCallbackMs, worstCallbackMs, meanUtilizationPercent, worstUtilizationPercent, maximumStartGapMs, backend, device, sampleRate, bufferSize, callbacksStalled, inputLatencySamples/outputLatencySamples, inputLatencyMs/outputLatencyMs, outputReady, driverXRunsSupported, driverXRuns (integer or null), managerXRuns, asioCompiled=false and lastInterruption.
+
+Timing measures the complete application callback (including capture/monitoring and DSP), not external driver/hardware latency. Deadline misses use actual callback frame count / sample rate; late starts use >1.5 previous-block periods. Missing intervals are capped estimates, never confirmed driver dropouts. Native driver xrun support is explicit; JUCE managerXRuns also includes JUCE's timing measurer. Driver-reported latencies are not loopback measurements. If consistent=false, read again; snapshot retries are bounded. Measurement resets take effect on the next callback/device start and retain driver/session lifecycle counters. Each device preparation starts a fresh measurement. Native F10 / command search exposes diagnostics, reset, explicit device restart and atomic Save to workspace/data/audio-diagnostics.json. MCP has no driver-configuration command.
+
+On device stop/change, native playback/monitoring/history disarm. Captured takes are finalized on the UI thread; keyboard endpoints use the pre-reconfiguration cursor. Restart/reconnect requires explicit Play, never automatic rearming. Re-read status/revision after any interruption because completing a take may change the project. Finish device recovery in the native UI if outputReady=false; do not keep issuing Play blindly. Broader streaming qualification, ASIO and full hardware/physical-failure qualification remain pending.
+
+
+## Long Playlist streaming diagnostics (0.84)
+
+Native 0.84+ streams Playlist sources over 16 MiB decoded stereo size, and short clips when decoded capacity is pinned. Already decoded sources can be reused. Samplers/editors still use the 512 MiB decoded pool. Streaming has independent six-page cursors per clip/source offset, one background read-ahead/thumbnail worker and a shared 128 MiB page/metadata reservation; reader/codec/process overhead is outside that reservation. Existing 30-minute, 8–192 kHz source and 4096-beat timeline limits remain. Portable archives/fingerprinting retain their separate bounds. No new MCP tools, file permissions or song schema changes are introduced.
+
+The optional `audioHealth` schema-1 block adds integer `streamingSources`, `streamingBufferBytes`, `streamingBufferLimitBytes` (=134217728), `streamingMissedFrames` and `streamingReadErrors`. The first two include all currently leased real-time/private offline cursors; reads can observe concurrent worker cleanup. Missing frames and errors are monotonic workspace-session counters, retained by Reset measurements; they are unrelated to driver xruns. An unavailable source frame contributes silence while background reads catch up. Failed reads or observed source size/mtime changes at read boundaries mark a cursor unavailable; reopen/republish its source to retry, then inspect diagnostics. Do not claim gap-free arbitrary seeks or sustained hardware qualification from these counters alone.
+
+Offline exports use separate blocking cursors, including normalization/range warm-up, and do not count live read-ahead misses. Source read failure retains the prior export destination. Header/open and initial read-ahead happen on the native control thread; subsequent real-time disk reads and peak generation run in the worker. Native full-song AUDIO takes now budget pages instead of the full decoded take; recording still follows selected duration/timeline/Punch/buffer capacity and disk-recorder limits. Input latency and comping remain pending; native 0.85+ adds acknowledged-prefix audio-take recovery (see below). Continue reading revision before every musical write, and re-read it after take finalization.
+
+Streaming budgets belong to each Assets pool: the live workspace and separate background export/analysis jobs own independent pools. Live `audioHealth` reports the workspace pool; it is not total process residency. Offline mix analysis uses private blocking cursors and reports read failures instead of measuring gaps from real-time read-ahead.
+
+
+## Interrupted audio-take recovery (0.85)
+
+New native AUDIO takes create managed UUID directories under `data/Recordings`, containing a uniquely named Take WAV, an absolute-asset pre-recording `session.pulse` snapshot and `checkpoint.json` (schema 1). The disk writer acknowledges frames only after WAV-header refresh and explicit OS file flush. It then atomically publishes frame count, rate/channels, original lane/beat/tempo, bounded saved header, session SHA-256 and acknowledged-tail identity. The callback performs no journal/file work. The latest unacknowledged audio is outside the recovery guarantee.
+
+FILE / command search > Recover interrupted audio take reviews acknowledged interrupted takes and builds a separate verified PCM24 WAV plus project in the background. Recovery never patches/deletes originals; it verifies exact copied prefix bytes, handles an interrupted later header using the saved checkpoint, and ignores trailing unacknowledged bytes. Identical-checkpoint recovery verifies/reuses the same copy. Changed/corrupt sources, session tokens, metadata, linked paths or outputs reject; cancel/stale work retains originals and any copy/draft. Explicit Open recovered project uses native unsaved-session backup; an edit while recovery runs prevents automatic Open review. Clean completion saves a verified project before recording its acknowledgement. Startup only announces pending takes; it never records or replaces a session automatically.
+
+The twelve MCP tools are unchanged. Native status/get-project add optional `takeRecoveryBusy` (boolean), `takeRecoveryCopyReady` (boolean) and `takeRecoveryProject` (string, empty without a retained copy); these describe native recovery work, not a new recording/recovery write command. Earlier apps omit them. Models should direct users to the native review and re-read project/revision after any explicit recovered-project Open. Do not attempt to manufacture/edit checkpoint JSON through MCP. Existing recordings before 0.85 have no journals. Discovery is bounded to 4096 entries / 128 candidates, excluding links; original/draft/completion files are retained. Checkpoint retention, input latency, comping, multi-input destinations and physical power-loss qualification remain pending.
+
+## Built-in selector automation (0.86)
+
+Restart **both** the native app and stdio bridge after updating. The twelve tools are unchanged. Native 0.86+/bridge 0.86+ add the following stable targets to `pulse_get_project.automationParameters`; IDs 0–100 keep their previous meanings. `add_automation` accepts IDs **0–117** or discovered keys. The bridge rejects these new keys/IDs before submitting to older apps.
+
+| ID | Key | Actual values / ordered `choices` |
+| --- | --- | --- |
+| 101–108 | `eq.enabled`, `compressor.enabled`, `reverb.enabled`, `chorus.enabled`, `flanger.enabled`, `phaser.enabled`, `delay.enabled`, `distortion.enabled` | 0 Off, 1 On |
+| 109–113 | `stereo.enabled`, `stereo.mono`, `stereo.swap`, `stereo.invertLeft`, `stereo.invertRight` | 0 Off, 1 On |
+| 114 | `dynamics.mode` | 0 Compressor, 1 Limiter, 2 Gate, 3 Expander |
+| 115 | `distortion.mode` | 0 Soft / tube, 1 Hard clip, 2 Fuzz |
+| 116–117 | `synth.wave1`, `synth.wave2` | 0 Sine, 1 Triangle, 2 Saw, 3 Pulse; audible on Pulse Analog (instrument 9) |
+
+Effect selectors (101–115) support `targetTrack:-1` for Master, or a source/bus channel. Waveforms (116–117) require a source channel; on other synth engines the stored waveform remains dormant. The Playlist `track` is independent of `targetTrack`. Other native built-in sound selectors are already represented by `synth.table` and `synth.physical.mode`. Instrument changes, routes and effect order are not automation targets.
+
+All point values remain **normalized 0–1 JSON numbers**, including switches: Off=0 and On=1. For a choice with actual index `k` and maximum `M`, use `k/M`; Gate is `2/3`, Hard clip is `1/2`, Saw is `2/3`. The renderer rounds the bounded actual value to the nearest integer; exact half values round upward. `choices` is an optional ordered string array, indexed by the actual integer value, not a list of normalized values. Native readouts add optional `valueText` alongside `value` (normalized) and `actualValue` (rounded); older apps omit it. Existing physical/wavetable selectors also expose choices. Do not assume every discrete numeric field has labels.
+
+For timed switches, explicitly set `hold:true` on the outgoing segment. Example, after pattern arrangement creation and with a fresh revision:
+
+```json
+{"op":"add_automation","track":7,"target":"distortion.enabled","targetTrack":-1,"beat":0,"length":8,"points":[{"beat":0,"value":0,"hold":true},{"beat":4,"value":1,"hold":true},{"beat":8,"value":1}]}
+```
+
+This turns Master Distortion on at beat 4 and returns to its saved static setting at beat 8. A linear/generated curve instead walks through the rounded choice thresholds. A mode selector does not enable its effect by itself; author the corresponding `.enabled` curve or static effect setting as well. Stereo transforms need `stereo.enabled`; waveform changes need Analog source audio/notes.
+
+Native Automation > New/link or Shift-right-click the switch/mode/waveform control creates a held clip without overwriting static settings. Select a point, then **Value** for exact named choices. The editor plots effective discrete values. During Song playback, native effect/slot/stereo/synth displays show live values. Stop/clip end return to the static controls. Automated insert bypass fades over 5 ms, keeps internal DSP/history warm even when dry and therefore still uses processing resources; Delay/Reverb history can be heard when re-enabled. Other mode changes retain existing DSP reset/transition rules. Unautomated chains retain their prior behavior.
+
+Current writes use **project schema 30**, reading supported schemas 1–29; a selector ID mislabeled as schema 29 or earlier rejects. Keep pre-update project/History backups for older apps. Normal fresh-revision, atomic-batch, preview, Undo/Redo and independent offline-export rules apply. Recording/write modes, remaining source/Master processing controls (including legacy Master saturation/delay), tempo/meter maps and third-party plugin targets remain unfinished. Tutorials stay last.
+
+## Master processing, mute and numeric point editing (0.87)
+
+Restart both app and stdio bridge. The twelve tools remain unchanged. `pulse_get_project.automationParameters` has **122** stable descriptors; IDs 0–117 retain their meaning. New `add_automation` targets require native/bridge 0.87+:
+
+| ID | Key | Actual range | Destination |
+| --- | --- | --- | --- |
+| 118 | `master.delayReturn` | 0–1 | Master only: `targetTrack:-1` |
+| 119 | `master.delayFeedback` | 0–0.8 | Master only: `targetTrack:-1` |
+| 120 | `master.softClip` | 0 Off, 1 On | Master only: `targetTrack:-1` |
+| 121 | `channel.mute` | 0 Off/unmuted, 1 On/muted | Source channel or bus; never Master |
+
+`track` is still the independent Playlist lane. The shared delay is the legacy ping-pong effect fed by channel `params.send`, not insert slot 7. `master.delayReturn` has no audible effect without a send/echo; feedback needs an echo history. These curves do not create routing or send signals. Master saturation is the existing post-Master-gain tanh stage. New Master processing links reject any nonnegative `targetTrack`; legacy ID 5 Master volume retains its old accepted aliases for saved-song compatibility.
+
+Descriptors now add optional boolean **`channel`**, indicating whether a channel/bus destination is supported. `master` continues to indicate Master capability. IDs 5 and 118–120 have `channel:false`; synth fields still exclude buses. Older apps omit `channel` and cannot author the new targets. Check native capability discovery rather than assuming every non-synth ID can address both destinations. Source/bus mute remains subject to static Solo/routing exclusions.
+
+Points still contain **normalized** 0–1 numbers. Return 50% uses value 0.5; feedback 40% uses value 0.5 because its actual maximum is 0.8. Soft saturation On uses 1. Muted uses 1, unmuted uses 0. `hold:true` selects the time of a switch. `actualValue` readouts report real units; optional `valueText` names Off/On choices. The bridge rejects new keys/IDs before writing requests to older apps. Preview, one-batch Undo/Redo, atomic destination validation and fresh revision checks apply.
+
+Native Shift-right-click Master return/feedback/saturation or a channel/bus mute lamp links its real destination. New switch curves default to Hold. Native **Value** now works on any selected point: named choices for selectors, or a typed **actual-unit value** for numeric fields. For feedback enter `0.4` for 40%, not `40`; for filter cutoff enter Hz. Invalid, non-finite, out-of-range or fractional discrete values reject rather than clamp. A changed project or selected point rejects a stale editor. This native convenience does not change MCP's normalized point schema.
+
+Return/feedback automate through bounded full-range 10 ms ramps; saturation uses a 5 ms crossfade between dry and the original tanh output. Mute uses the existing channel-gain smoothing. Mute curves retain scheduled/held source notes even when saved static mute is true, so an unmute can restore an in-progress phrase; such channels still consume voice/processing resources while muted. Static Solo exclusions remain authoritative, including isolated exports. At clip end and Stop, readouts clear and the static settings return (with the applicable audio smoothing). Effects and shared-delay history are not rewritten into the song. Unautomated songs retain the previous render path.
+
+Current writes use **schema 31**, reading supported schemas 1–30. New processing/mute IDs mislabeled as schema 30 or earlier reject. Keep pre-update backups for older apps. Full multi-control Write/Trim recording, remaining source controls, tempo/meter maps and plugin hosting are still unfinished; tutorials remain the final ready-candidate step.
+
+## Automation recording passes (0.88)
+
+In the Automation clip editor select **Touch** or **Latch** from **Read**, then **Record pass**. This plays SONG from the selected clip's start through its end. Drag the dedicated **Write** control horizontally to perform that parameter, including named selectors and Master destinations. Touch returns to the exact existing curve on release; Latch holds the last value until Stop or the range end. **Finish pass**, Space or Stop ends early. A selected clip must fit inside any enabled Song loop range.
+
+Review the orange held take over the original curve. **Apply** appends one overlay clip per Touch gesture (one for Latch), as a single Undo/Redo operation. The original curves and static settings remain available underneath; deleting an overlay reveals them. Higher, later clip indices take precedence for the same parameter and destination. **Discard** / Escape keeps the original project. Save after Apply to retain the pass. Unapplied takes are transient, are not recovery recordings, and are never armed on restart.
+
+One pass writes one selected destination through the dedicated control. Values are consumed/stamped at audio callback boundaries and stored as held points, reproducing the audition without curve simplification or quantization. Gestures shorter than a callback may not be captured. Limits: 16 gesture clips and 256 total take points, within the existing 512-clip / 64-automation-clip / 4096-point project budgets and 600-beat automation clip maximum. Capacity overflow invalidates the pass without partial Apply. Untouched and zero-duration takes add no clips. Seek/loop discontinuities and project revision changes invalidate a pass; device interruption discards the transient pass. A pass ending at the loop boundary completes before wrapping.
+
+`pulse_status` / `pulse_get_project` add `automationWritePending`. Native pending capture/review blocks MCP edits, save/export and view changes; inspection remains available and a fresh-revision transport Stop/Pause can finish the pass. The twelve tools do not arm automation recording: MCP can still author the resulting ordinary held automation clips atomically with `add_automation`. Read state again after native Apply. Continuous knobs outside the dedicated control, simultaneous parameter passes, destructive Write/Trim modes, plugin targets and tempo/meter maps remain unfinished. Tutorials stay last.
+
+
+
+## Native full-range/ordinary-control recording (0.89)
+
+Native Automation adds **Write**: Record pass starts a full-range held take at the effective value of the most recent active curve. Changes hold after release; an untouched Write pass deliberately records a constant range. Stop retains its performed prefix. Touch/Latch/Write can use the selected parameter's ordinary source/bus/Master knob or fader, synth knob or insert control, with safe panel navigation. Other parameters remain guarded; one destination records per pass. Return to Automation to Finish/review/Apply/Discard. Static values and original curves are retained, with one Apply Undo. Twelve MCP tools, schema 31, automationWritePending and capture/review mutation guards are unchanged. MCP does not arm native recording modes; use existing add_automation for authored curves. Multi-destination/Trim recording remains unfinished.
+
+
+## Relative Trim layers (0.90)
+
+Native Trim records a signed offset while touched; release returns to the original curve. Centre is neutral. Review/Apply retains original shaped curves and adds relative clips with one Undo. Continuous targets only; selectors, counts and other discrete targets reject Trim.
+
+MCP add_automation accepts optional trim:true (app/server 0.90+). Points retain 0–1 encoding: 0.5 is zero offset, 0/1 subtracts/adds the full normalized range. For +10% range send 0.55, for -10% send 0.45. This is a normalized parameter offset, not dB or hertz; logarithmic targets shift in their logarithmic range. Each sample starts from static controls, folds active clips in saved order, replaces on an absolute clip, adds/clamps on Trim. Multiple relative layers accumulate in order; a later absolute clip replaces their result. Native neutral layers are transparent. Seek/loops use timeline values, with no historical offset accumulation.
+
+Schema 32 persists automationTrim booleans; older supported schemas load with false defaults. Read parameter descriptors' trim capability and fresh revision. Keep original copies for older apps. set_arrangement still cannot represent any automation clip and would discard them. Existing point/generator/section operations preserve mode. Twelve tools and 122 IDs remain; multi-destination capture stays unfinished.
+
+
+## Source choke membership (0.91)
+
+Use set_track/add_track.chokeGroup integer 0–16 (top-level operation field, not params). 0 is Off; a nonzero value shares one mutually interrupting group across source channels. Buses require 0. For open/closed hats assign the same group to both. An accepted hit fades older voices of that group over 5 ms, including same-channel notes and typing audition. Effect tails and Playlist audio clips are not choked; only generated/sampler note voices participate. Zero-velocity, skipped and statically muted/Solo-excluded hits do not close other voices. Mute-automated channels retain the existing scheduled-note behavior.
+
+Schema 33 persists groups; supported older files load with Off, and nonzero membership cannot be mislabeled as older schema. Sound preset/sample recall retains the selected channel's group; project/channel templates copy it. Fresh revision and existing atomic Undo rules apply. Stem exports retain peer closing-event timing without their audio. Shared-group source bounce rejects replacement because removing notes would remove events closing other channels; Song/stem export remains supported. No sample import operation, new generator family, new tool or new automation ID is added.
+
+## Ripple time (0.92+)
+
+Use pulse_edit with ripple_time only after inspecting every lane and marker/punch/loop range. start and length are beats; remove:false inserts empty time and remove:true deletes it. Preview destructive edits first, inspect candidateProject, then commit with a fresh revision. All lanes participate. Crossing clips reject rather than being truncated. Fully removed sections/cues disappear; deleted loops switch off. A collapsed punch switches off and resets to beats 0-8. Surviving media, notes and automation payloads stay intact. See references/api.md for exact boundary semantics and timeout recovery.
+
+## Shared effects and parallel buses (0.93+)
+
+Use set_track/add_track.auxSends to send a source or bus to up to four existing bus channels. Read the detailed reference before authoring: auxSends replaces all four slots, with target/level/preFader required in every slot. Bus effect mix 1 gives a wet-only shared return. Pre is after inserts/pan and before volume; Mute closes both pre and post. Source Solo retains returns; bus Solo isolates its branch. preview:true validates full acyclic routing before one-Undo commit. Read current track indices again after native bus deletion. Send automation and latency compensation remain unfinished.
+
+## Auxiliary send-level automation (0.94+, project schema 35)
+
+The four existing auxiliary slots now have continuous automation targets. Read `pulse_get_project.automationParameters`: IDs **122–125** map to `aux.send1.level` through `aux.send4.level`. There are **126** descriptors in total; IDs 0–121 keep their previous meaning. Targets accept a source or bus `targetTrack`; Master (`-1`) rejects. Each point's normalized value 0–1 maps to send gain **0–1.5** (0–150%). Native point **Value** edits accept actual gain, for example 0.75 means 75%; native send-knob numeric entry accepts percentages, for example 75.
+
+```json
+{"op":"add_automation","track":7,"target":"aux.send1.level","targetTrack":7,"beat":8,"length":8,"points":[{"beat":0,"value":0},{"beat":4,"value":0.6666666667},{"beat":8,"value":0}]}
+```
+
+First configure that channel's `auxSends` destination/tap with `set_track`, using the existing complete four-slot array, and create the destination bus if needed in the same atomic batch. An Off slot remains silent even if its level is automated; automation never enables or changes a route. Destinations and pre/post-fader taps remain static and obey existing cycle/Solo validation. Levels retain the same smoothing, Mute handling and common callback/export processing. Curves work with seek, loop and clip-end static restoration, generators, section operations, Trim layers, and one-destination Touch/Latch/Write/Trim passes. Saved static gain remains intact.
+
+Native workflow: Mixer **Sends** opens four live level knobs. **Routing / taps** opens the existing four-slot route editor. Effect panels also expose **Levels**, and Ctrl+P finds **Mixer auxiliary send levels**. Shift-right-click a knob creates its curve; ordinary right-click offers actual percent entry and automation. During a pass, open Levels and drag the matching knob to capture that destination. Simultaneous destination capture remains unfinished.
+
+Both native app and stdio bridge must be 0.94+. The bridge checks the OPEN app before submitting these new IDs/keys. Schema 35 persists them; schemas 1–34 with supported instruments remain readable, while a file carrying these targets under an older schema rejects. Keep original projects for older apps. Twelve tools remain unchanged. This completes auxiliary **level** automation; route/tap automation, arbitrary processor instances, freeze/unfreeze, plugin latency compensation and other v1.0 gates remain open. Tutorials remain the final release step.
+
+## Input recording alignment (0.95+)
+
+This is a local audio-input preference, configured natively in **Options > Tempo and recording > Align input**, or Ctrl+P **Input recording alignment**. It does not change existing songs, notes, PCM files, export rendering, or the project schema. Default **Off** preserves previous capture timing. Four modes are available: 0 Off (ignores retained manual correction), 1 Manual, 2 reported input + manual, 3 reported input and output + manual. Manual correction is -1000 to +1000 milliseconds. Combined correction must be within two seconds and resolves once at REC to an integer sample offset at the current device rate. Driver latency is a report, not an automatic measured loopback calibration; select settings from measurements of the monitoring/playback path you use.
+
+A positive offset delays the capture window and places its first received sample at the intended Song beat. A negative offset captures earlier; when the requested audio precedes Song start, its unavailable prefix remains a gap. Count-in stays outside capture. Punch-in/out and selected take duration shift together, preserving the intended musical placement/length when space is available. Song boundaries can shorten or reject a take with an explanation. The recorder writes unchanged dry mono/stereo PCM. REC/Stop early finalizes the last input already received; no future device input is recovered after Stop. Keyboard NOTES and retrospective input history remain uncompensated.
+
+Settings live in the optional strict `alignment` object inside workspace `data/input-audio.json`, with its own schema 1: `{"schema":1,"mode":3,"manualMs":12.5}`. Supported older preference files without it start Off. Do not replace this file while the app is running; use the native editor. Settings cannot change during takes, automation passes, previews or exports. They do not consume musical Undo. The recovery checkpoint stores the final aligned clip beat before recording; restoring interrupted PCM uses that beat once, independently of the current device/preferences.
+
+`pulse_status`, `pulse_get_project` and runtime diagnostics expose read-only `inputAlignment`: `schema`, `mode`, `modeName`, `manualMs`, `sampleRate`, raw `inputLatencySamples`/`outputLatencySamples`, `canResolve`, `resolvedSamples`, `resolvedMs`, `error`, and `lastTakeSamples`/`lastTakeRate`. The last pair is a transient snapshot from the most recently armed audio take, initially zero. Unavailable resolution returns null samples/ms and an explanation. Status inspection never arms input or changes preferences. There are still twelve MCP tools, 126 automation targets and project schema 35. Automatic loopback calibration, simultaneous recording destinations, take lanes/comping, keyboard/history compensation and physical-driver qualification remain open. Tutorials remain last.

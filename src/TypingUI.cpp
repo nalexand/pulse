@@ -6,12 +6,13 @@ namespace pulse {
 using namespace juce;
 void Studio::restoreTypingSettings(){TypingSettings prefs;auto result=loadTypingSettings(root.getChildFile("data/typing-keyboard.json"),prefs);if(result.failed()){status=result.getErrorMessage();return;}typingVelocity=prefs.velocity;octave=prefs.octave;typingEnabled=prefs.enabled;typingTranspose=prefs.transpose;typingCaptureEnabled=prefs.capture;typingCaptureSeconds=prefs.captureSeconds;typingCapture.setWindow(typingCaptureSeconds*1000.);typingSustain=false;}
 void Studio::saveTypingPreferences(){auto result=saveTypingSettings(root.getChildFile("data/typing-keyboard.json"),{typingVelocity,octave,typingEnabled,typingTranspose,typingCaptureEnabled,typingCaptureSeconds});if(result.failed())status=result.getErrorMessage();}
-String Studio::typingContext()const{
+String Studio::typingContext()const{if(longNotesActive)return "long-notes:"+String(takeTrack)+":"+String(takeBeat,6);
     if(selectedTrack<0||selectedTrack>=(int)project.tracks.size()||project.patterns.empty())return {};
     const auto& t=project.tracks[(size_t)selectedTrack];
     return project.patterns.front().editorId+":"+String((int)project.tracks.size())+":"+String(selectedTrack)+":"+String((int)t.instrument)+":"+t.name+":"+t.samplePath;
 }
 bool Studio::typingKeyOn(int key,int pitch){
+    if(longNotesActive&&selectedTrack!=takeTrack){releaseKeys();selectedTrack=takeTrack;}
     if(!typingEnabled||heldKeys.count(key)||project.tracks[(size_t)selectedTrack].isBus)return false;
     pitch+=typingTranspose;if(pitch<0||pitch>127){status="Typing note is outside MIDI pitch 0-127. Lower the octave or transposition.";return false;}
     auto context=typingContext();if(context!=typingCaptureContext){releaseKeys();typingCapture.clear();typingCaptureContext=context;}

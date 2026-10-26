@@ -9,7 +9,7 @@ bool Studio::configureSamplePreview(const BrowserAsset& asset,const SamplePrevie
     if(recording||recorder.isActive()){status="Finish the take before changing sample audition.";return false;}
     if(revision!=expected){status="Project changed. Reopen the sample preview dialog.";return false;}
     auto valid=validateSamplePreview(options);if(valid.failed()){status=valid.getErrorMessage();return false;}
-    String error;auto* source=assets.load(asset.file,error);if(!source){status=error;return false;}
+    String error;auto source=assets.load(asset.file,error);if(!source){status=error;return false;}
     double duration=source->audio.getNumSamples()/source->sampleRate;
     if(!std::isfinite(asset.start)||!std::isfinite(asset.end)||asset.start<0||asset.end<0||asset.start>=duration||(asset.end>0&&(asset.end<=asset.start||asset.end>duration+1e-9))){status="Invalid sample audition range.";return false;}
     valid=saveSamplePreview(samplePreviewFile(),asset.file,options,catalogToken,sourceStamp);

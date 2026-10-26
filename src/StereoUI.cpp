@@ -6,14 +6,14 @@ namespace pulse {
 using namespace juce;
 bool Studio::performStereoAction(int action,int){
     if(action<stereoOpen||action>stereoReset)return false;
-    if(action==stereoOpen){masterInsertView=false;masterEffectsView=false;if(analyzerView){analyzerView=false;saveAnalyzerSettings();updateAnalyzer();}selectedEffect=6;showPane(effectsPane);return true;}
+    if(action==stereoOpen){masterInsertView=false;masterEffectsView=false;if(analyzerView){analyzerView=false;saveAnalyzerSettings();updateAnalyzer();}selectedEffect=8;showPane(effectsPane);return true;}
     if(recording||recorder.isActive()){status="Finish the current take before changing stereo tools.";return true;}
     auto& value=effectMixer(effectTarget()).stereo;auto next=value;
     switch(action){case stereoEnable:next.enabled=!next.enabled;break;case stereoMono:next.mono=!next.mono;break;case stereoSwap:next.swap=!next.swap;break;case stereoInvertLeft:next.invertLeft=!next.invertLeft;break;case stereoInvertRight:next.invertRight=!next.invertRight;break;case stereoReset:next={};break;default:break;}
     if(next!=value){checkpoint();value=next;changed();status=next.enabled?"Stereo tools updated. Width can raise peaks; check the analyzer.":"Stereo tools bypassed. Stored settings are retained unless Reset was used.";}return true;
 }
 void Studio::paintStereo(Graphics& g,Rectangle<float> r){
-    Colour text(0xffd9ddde),muted(0xffadb7bd);g.setColour(Colour(0xff3b464c));g.fillRect(r);const auto& track=project.tracks[(size_t)selectedTrack];const bool master=editingMasterEffects();const auto& s=effectMixer(effectTarget()).stereo;float x=r.getX()+16,y=r.getY()+9,w=r.getWidth()-32;
+    Colour text(0xffd9ddde),muted(0xffadb7bd);g.setColour(Colour(0xff3b464c));g.fillRect(r);const auto& track=project.tracks[(size_t)selectedTrack];const bool master=editingMasterEffects();const auto mixer=displayedEffectMixer(effectTarget());const auto& s=mixer.stereo;float x=r.getX()+16,y=r.getY()+9,w=r.getWidth()-32;
     label(g,(master?String("Master"):track.name)+" / Stereo tools",{x,y,w-205,25},13,text,true);button(g,"Effects",{r.getRight()-194,y,78,25},effectsTab,0);button(g,"Analyzer",{r.getRight()-108,y,92,25},master?analyzerMaster:analyzerOpen);
     button(g,s.enabled?"ENABLED":"BYPASSED",{x,y+37,108,25},stereoEnable,0,s.enabled);button(g,"Reset",{x+116,y+37,74,25},stereoReset);
     float column=(w-18)/2;dial(g,"Width  "+String(s.width*100,0)+"%",{x,y+80,column,42},stereoWidth,s.width/2,effectTarget());dial(g,"Output trim  "+String(s.trim,1)+" dB",{x+column+18,y+80,column,42},stereoTrim,(s.trim+24)/30,effectTarget());

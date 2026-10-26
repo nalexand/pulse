@@ -13,7 +13,7 @@ import sys
 import time
 import uuid
 
-VERSION = "0.76.0"
+VERSION = "0.95.0"
 MAX_MESSAGE = 2 * 1024 * 1024
 
 def obj(properties: dict, required=()) -> dict:
@@ -49,8 +49,10 @@ TUNING = obj({"enabled": BOOL, "name": string(100), "referenceHz": num(220,880),
 PARAMS = obj({"volume": num(0, 1.5), "pan": num(-1, 1), "cutoff": num(60, 20000),
               "drive": num(0, 1), "send": num(0, .8), "attack": num(.001, 2), "release": num(.02, 3), "sampleRoot": num(0, 127, True), "sampleTune": num(-100, 100)})
 EFFECTS = obj({
+    "delay": obj({"enabled": BOOL, "repeats": num(1,16,True), "interval": num(20,1000), "fade": num(0,1), "mix": num(0,1)}),
+    "distortion": obj({"enabled": BOOL, "mode": num(0,2,True), "drive": num(0,48), "lowCut": num(20,1000), "tone": num(800,12000), "presence": num(-12,12), "asymmetry": num(0,1), "cabinet": num(0,1), "mix": num(0,1), "output": num(-24,6)}),
     "eq": obj({"enabled": BOOL, **{k: num(-18, 18) for k in ("low", "mid", "high")}}),
-    "order": {**array(num(0, 5, True), 6, 6), "uniqueItems": True},
+    "order": {**array(num(0, 7, True), 8, 8), "uniqueItems": True},
     "compressor": obj({"enabled": BOOL, "threshold": num(-60, 0), "ratio": num(1, 20), "attack": num(.1, 100), "release": num(5, 1000), "makeup": num(-12, 24), "mode": {"enum":["compressor","limiter","gate","expander"]}, "range":num(0,96), "hysteresis":num(0,24), "hold":num(0,1000), "knee":num(0,24)}),
     **{name: obj({"enabled": BOOL, "mix": num(0, 1), "rate": num(.02, 5), "depth": num(0, 1),
                  "centre": num(.2, 8) if name=="flanger" else num(100, 4000),
@@ -74,7 +76,8 @@ POINT = obj({"beat": num(0, 4096), "value": num(0, 1), "hold": BOOL, "curve": nu
 def operation(kind: str, props: dict, required=()) -> dict:
     return obj({"op": {"enum": [kind]}, **props}, ("op", *required))
 
-track_properties = {"mute": BOOL, "solo": BOOL,"name": string(), "instrument": {"enum": ["kick", "snare", "hat", "clap", "open_hat", "bass", "pad", "lead", "analog", "fm", "wavetable", "additive", "physical"]},
+AUX_SEND = obj({"target": num(-1,15,True), "level": num(0,1.5), "preFader": BOOL}, ("target","level","preFader"))
+track_properties = {"auxSends": array(AUX_SEND,4,4),"chokeGroup": num(0, 16, True), "mute": BOOL, "solo": BOOL,"name": string(), "instrument": {"enum": ["kick", "snare", "hat", "clap", "open_hat", "bass", "pad", "lead", "analog", "fm", "wavetable", "additive", "physical"]},
                     "preset": string(), "synth": SYNTH, "tuning": TUNING, "params": PARAMS, "effects": EFFECTS, "output": num(-1, 15, True)}
 OPERATIONS = {"oneOf": [
     operation("set_song", {"title": string(200), "bpm": num(30, 300), "swing": num(0, .6), "master": num(0, 1),
@@ -95,11 +98,12 @@ OPERATIONS = {"oneOf": [
     operation("set_arrangement", {"clips": array(CLIP, 512)}, ("clips",)),
     operation("set_audio_fades", {"clip": num(0, 511, True), "fadeIn": num(0, 600), "fadeOut": num(0, 600), "fadeInCurve": num(0, 2, True), "fadeOutCurve": num(0, 2, True)}, ("clip",)),
     operation("set_markers", {"markers": array(MARKER, 128)}, ("markers",)),
+    operation("ripple_time", {"start": num(0,4096), "length": num(.25,4096), "remove": BOOL}, ("start","length","remove")),
     operation("section_clips", {"section": string(80), "destination": num(0, 4096), "move": BOOL, "allowOverlap": BOOL}, ("section", "destination")),
     operation("set_automation_points", {"clip": num(0, 511, True), "points": array(POINT, 256, 2)}, ("clip", "points")),
     operation("generate_automation", {"clip": num(0, 511, True), "wave": {"enum": ["sine", "triangle", "square", "steps", "random_hold", "random_smooth"]}, "period": num(.0625, 600), "phase": num(0, 1), "low": num(0, 1), "high": num(0, 1), "resolution": num(4, 64, True), "seed": num(0, 4294967295, True), "steps": array(num(0, 1), 32, 2)}, ("clip", "wave", "period")),
-    operation("add_automation", {"track": TRACK, "target": num(0, 5, True), "targetTrack": num(-1, 15, True),
-                                 "beat": num(0, 4096), "length": num(.0625, 600), "points": array(POINT, 256, 2)},
+    operation("add_automation", {"track": TRACK, "target": {"oneOf": [num(0,125,True),string(64)]}, "targetTrack": num(-1, 15, True),
+                                 "beat": num(0, 4096), "length": num(.0625, 600), "points": array(POINT, 256, 2), "trim": BOOL},
               ("track", "target", "targetTrack", "beat", "length", "points")),
 ]}
 
@@ -114,7 +118,7 @@ TOOLS = [
     tool("list_sounds", "List original factory sounds with complete editable Analog/FM/Wavetable/Additive/Resonator patches. Synth overrides can create new sounds on each track.", obj({}), True),
     tool("new_song", "Start a new Song-mode composition in the open app with eight default channels and one pattern. Back up the previous session to History and retain it in Undo.",
          obj({"expected_revision": REVISION, "title": string(200), "bpm": num(30, 300)}, ("expected_revision", "title", "bpm"))),
-    tool("edit", "Apply 1-128 atomic operations as ONE project undo. preview:true validates and returns candidateProject without committing. project_commands accepts bounded local text commands with visible one-based target numbers and returns resolved actions in preview. Ordinary structured operation indices remain zero-based. Indices are zero-based. add_track/add_pattern append; extract_notes copies or moves selected indices into a new pattern; merge_patterns layers with conflict handling or sequences phrases; set_notes replaces one lane; set_arrangement replaces all clips. set_audio_fades edits existing audio clip lengths/shapes (0 Linear, 1 Equal power, 2 S-curve) without loading files. section_clips copies/moves whole clips inside a named section with destination overlap guards. set_track supports factory preset plus partial custom synth/params/effects. add_automation targets 0 volume, 1 pan, 2 cutoff, 3 drive, 4 send, 5 master, with normalized values. Read updated revision after each call.",
+    tool("edit", "Apply 1-128 atomic operations as ONE project undo. preview:true validates and returns candidateProject without committing. project_commands accepts bounded local text commands with visible one-based target numbers and returns resolved actions in preview. Ordinary structured operation indices remain zero-based. Indices are zero-based. add_track/add_pattern append; extract_notes copies or moves selected indices into a new pattern; merge_patterns layers with conflict handling or sequences phrases; set_notes replaces one lane; set_arrangement replaces all clips. set_audio_fades edits existing audio clip lengths/shapes (0 Linear, 1 Equal power, 2 S-curve) without loading files. ripple_time inserts or deletes time across all lanes (start/length in beats; remove boolean required). Boundary-crossing clips reject; markers/loop/punch follow; fully deleted loop/punch ranges switch off. Use preview:true before deletion. section_clips copies/moves whole clips inside a named section with destination overlap guards. set_track/add_track accept optional auxSends: exactly four objects with target (-1 Off or another existing bus index), level 0-1.5 and preFader boolean. This replaces all slots; omission preserves existing sends. Feedback cycles reject even at level 0. Pre taps are after inserts/pan, before channel volume, and obey Mute; post taps also follow volume. Bus Solo isolates its return branch; source Solo retains all returns. set_track/add_track also accept chokeGroup 0-16 (0 off; buses require 0). Accepted notes stop older group voices with a 5 ms fade; effects tails remain. set_track supports factory preset plus partial custom synth/params/effects. add_automation accepts stable target IDs 0-125 or keys discovered in get_project.automationParameters, with normalized values. Optional trim:true adds a continuous offset layer: value 0.5 is zero, 0/1 subtracts/adds the full normalized range, then clamps. Discrete targets reject Trim. Later absolute clips override earlier layers; later Trim clips offset their underlying result. IDs 0-5 keep their legacy meaning. Inspect descriptor channel/master capabilities: targets 118-120 require targetTrack:-1 (Master processing), 121 requires a channel/bus (mute), targets 122-125 / aux.send1.level through aux.send4.level are channel/bus auxiliary levels (normalized 0-1 maps to gain 0-1.5; the bus destination and tap remain static), and synth targets need a source channel. Numeric point values remain normalized, even when native Value editing accepts actual units. Read updated revision after each call.",
          obj({"expected_revision": REVISION, "operations": array(OPERATIONS, 128, 1), "preview": BOOL}, ("expected_revision", "operations"))),
     tool("transport", "Control actual app playback: play, pause, stop/rewind or seek in beats. Requires current revision and available audio output.",
          obj({"expected_revision": REVISION, "action": {"enum": ["play", "pause", "stop", "seek"]}, "beat": num(0, 4096)}, ("expected_revision", "action"))),
@@ -193,6 +197,48 @@ class Bridge:
         session, token = metadata.get("session"), metadata.get("token")
         if metadata.get("schema") != 1 or not isinstance(session, str) or not re.fullmatch(r"[0-9a-f]{32}", session) or not isinstance(token, str) or not token:
             raise ValueError("Invalid control session metadata")
+        if command == "edit":
+            effects = [op.get(key, {}) for op in arguments.get("operations", []) for key in ("effects", "masterEffects")]
+            if any(isinstance(fx, dict) and ("delay" in fx or "distortion" in fx or len(fx.get("order", [])) == 8) for fx in effects):
+                version = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:[-+].*)?", str(metadata.get("version", "")))
+                if version is None or tuple(map(int, version.groups())) < (0, 80, 0):
+                    raise ValueError("Delay, Distortion and eight-slot ordering require the OPEN app to be Pulse Studio 0.81.0+. No request was submitted.")
+        if command == "edit" and any(op.get("op") in ("set_track","add_track") and "auxSends" in op for op in arguments.get("operations", [])):
+            version = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:[-+].*)?", str(metadata.get("version", "")))
+            if version is None or tuple(map(int, version.groups())) < (0, 93, 0):
+                raise ValueError("Auxiliary sends require the OPEN app to be Pulse Studio 0.93.0+. No request was submitted.")
+        if command == "edit" and any(op.get("op")=="add_automation" and ((type(op.get("target")) is int and 122 <= op["target"] <= 125) or (isinstance(op.get("target"), str) and re.fullmatch(r"aux\.send[1-4]\.level", op["target"]))) for op in arguments.get("operations", [])):
+            version = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:[-+].*)?", str(metadata.get("version", "")))
+            if version is None or tuple(map(int, version.groups())) < (0, 94, 0):
+                raise ValueError("Auxiliary level automation requires the OPEN app to be Pulse Studio 0.94.0+. No request was submitted.")
+        if command == "edit" and any(op.get("op")=="ripple_time" for op in arguments.get("operations", [])):
+            version = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:[-+].*)?", str(metadata.get("version", "")))
+            if version is None or tuple(map(int, version.groups())) < (0, 92, 0):
+                raise ValueError("Ripple editing requires the OPEN app to be Pulse Studio 0.92.0+. No request was submitted.")
+        if command == "edit" and any(op.get("op") in ("set_track", "add_track") and "chokeGroup" in op for op in arguments.get("operations", [])):
+            version = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:[-+].*)?", str(metadata.get("version", "")))
+            if version is None or tuple(map(int, version.groups())) < (0, 91, 0):
+                raise ValueError("Choke groups require the OPEN app to be Pulse Studio 0.91.0+. No request was submitted.")
+        if command == "edit" and any(op.get("op")=="add_automation" and "trim" in op for op in arguments.get("operations", [])):
+            version = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:[-+].*)?", str(metadata.get("version", "")))
+            if version is None or tuple(map(int, version.groups())) < (0, 90, 0):
+                raise ValueError("Trim automation requires the OPEN app to be Pulse Studio 0.90.0+. No request was submitted.")
+        if command == "edit" and any(op.get("op")=="add_automation" and (isinstance(op.get("target"),str) or (isinstance(op.get("target"), (int,float)) and op["target"]>5)) for op in arguments.get("operations",[])):
+            version = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:[-+].*)?", str(metadata.get("version", "")))
+            if version is None or tuple(map(int, version.groups())) < (0, 81, 0):
+                raise ValueError("Extended automation requires the OPEN app to be Pulse Studio 0.81.0+. No request was submitted.")
+        if command == "edit":
+            selector_keys = {"eq.enabled", "compressor.enabled", "reverb.enabled", "chorus.enabled", "flanger.enabled", "phaser.enabled", "delay.enabled", "distortion.enabled", "stereo.enabled", "stereo.mono", "stereo.swap", "stereo.invertLeft", "stereo.invertRight", "dynamics.mode", "distortion.mode", "synth.wave1", "synth.wave2"}
+            if any(op.get("op") == "add_automation" and (op.get("target") in selector_keys if isinstance(op.get("target"), str) else type(op.get("target")) in (int, float) and op["target"] >= 101) for op in arguments.get("operations", [])):
+                version = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:[-+].*)?", str(metadata.get("version", "")))
+                if version is None or tuple(map(int, version.groups())) < (0, 86, 0):
+                    raise ValueError("Selector automation requires the OPEN app to be Pulse Studio 0.86.0+. No request was submitted.")
+        if command == "edit":
+            new_keys = {"master.delayReturn", "master.delayFeedback", "master.softClip", "channel.mute"}
+            if any(op.get("op") == "add_automation" and (op.get("target") in new_keys if isinstance(op.get("target"), str) else type(op.get("target")) in (int, float) and op["target"] >= 118) for op in arguments.get("operations", [])):
+                version = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:[-+].*)?", str(metadata.get("version", "")))
+                if version is None or tuple(map(int, version.groups())) < (0, 87, 0):
+                    raise ValueError("Master processing and mute automation require the OPEN app to be Pulse Studio 0.87.0+. No request was submitted.")
         if command == "mix_analysis":
             version = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:[-+].*)?", str(metadata.get("version", "")))
             if version is None or tuple(map(int, version.groups())) < (0, 68, 0):

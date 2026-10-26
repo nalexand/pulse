@@ -8,8 +8,8 @@ void Studio::addAudioClip(const File& file,int track,double beat){
     if(track<0||track>=(int)project.tracks.size()||!std::isfinite(beat)){status="Select a valid Playlist lane and cursor.";return;}
     if(project.tracks[(size_t)track].isBus){status="Place audio on a source track, then route it to the bus.";return;}
     if(project.clips.size()>=maxClips){status="Arrangement clip limit reached.";return;}
-    String error;auto* sample=assets.load(file,error);if(!sample){status=error;return;}
-    double duration=sample->audio.getNumSamples()/sample->sampleRate*project.bpm/60;if(duration>4096||beat<0||beat+duration>4096){status="Full audio does not fit at this cursor inside the 4096-beat timeline. Move the cursor earlier, lower tempo, or select a shorter range in Waveform.";return;}
+    String error;auto sample=assets.loadPlaylist(file,0,(int)project.clips.size(),error);if(!sample){status=error;return;}
+    double duration=sample->frameCount()/sample->sampleRate*project.bpm/60;if(duration>4096||beat<0||beat+duration>4096){status="Full audio does not fit at this cursor inside the 4096-beat timeline. Move the cursor earlier, lower tempo, or select a shorter range in Waveform.";return;}
     checkpoint();Clip c;c.track=jlimit(0,(int)project.tracks.size()-1,track);c.beat=jlimit(0.,4096.,beat);
     c.audioPath=file.getFullPathName();c.length=duration;
     project.clips.push_back(c);selectedClip=(int)project.clips.size()-1;selectedTrack=c.track;project.songMode=true;
@@ -24,13 +24,21 @@ void Studio::toggleAudioRecording(){
     if(!device||activeInputs.load()==0){status="Choose an input device and enable its input channels in F10, then press REC again.";perform(settings);return;}
     int channels=inputChannelCount(activeInputs.load(),(InputMode)inputMode.load());if(channels==0){status="Input 2 is unavailable. Enable two input channels in F10 or choose Input 1 in recording setup.";showPane(recordingPane);return;}
     if(!audioReady())return;
-    auto plan=recordingPlan(false);double maximum=availableTakeSeconds(device->getCurrentSampleRate(),plan.gateBeat);if(plan.endBeat>=0)maximum=jmin(maximum,(plan.endBeat-plan.gateBeat)*60/project.bpm);if(maximum<1/device->getCurrentSampleRate()){status="No timeline/cache space for a playable take. Move the cursor earlier or save/reopen to release unused cached audio.";return;}plan.endBeat=plan.gateBeat+std::floor(maximum*device->getCurrentSampleRate())/device->getCurrentSampleRate()*project.bpm/60;releaseKeys();captureClosing.store(true);engine->preview(nullptr);engine->stop();
-    takeFile=root.getChildFile("data/Recordings").getNonexistentChildFile("Take_"+Time::getCurrentTime().formatted("%Y%m%d_%H%M%S"),".wav");
-    auto result=recorder.start(takeFile,device->getCurrentSampleRate(),channels,maximum);if(result.failed()){captureClosing.store(false);status=result.getErrorMessage();return;}
-    checkpoint();takeOldLoop=project.loop;takeOldMode=project.songMode;takeRestoreMode=true;takeRestoreLoop=true;project.songMode=true;project.loop=false;takeTempo=project.bpm;takeTrack=selectedTrack;takeBeat=plan.gateBeat;takeGateEnd=plan.endBeat;
+    auto plan=recordingPlan(false);double maximum=availableTakeSeconds(device->getCurrentSampleRate(),plan.gateBeat);if(plan.endBeat>=0)maximum=jmin(maximum,(plan.endBeat-plan.gateBeat)*60/project.bpm);if(maximum<1/device->getCurrentSampleRate()){status="No timeline/audio-buffer space for a playable take. Move the cursor earlier or remove unused long clips.";return;}plan.endBeat=plan.gateBeat+std::floor(maximum*device->getCurrentSampleRate())/device->getCurrentSampleRate()*project.bpm/60;
+    int64_t alignment=0;auto alignedResult=resolveInputAlignment(inputAlignment,device->getCurrentSampleRate(),device->getInputLatencyInSamples(),device->getOutputLatencyInSamples(),alignment);AlignedInputWindow window;
+    if(alignedResult.wasOk())alignedResult=alignInputWindow(plan.startBeat,plan.gateBeat,plan.endBeat,project.bpm,device->getCurrentSampleRate(),alignment,window);
+    if(alignedResult.failed()){status="Take was not armed: "+alignedResult.getErrorMessage();return;}
+    plan.startBeat=window.startBeat;plan.gateBeat=window.gateBeat;plan.endBeat=window.endBeat;
+    // Quarter-frame margin survives floating-point seconds->floor conversion;
+    // the writer and recovery checkpoint retain exactly window.frames.
+    maximum=(window.frames+.25)/device->getCurrentSampleRate();releaseKeys();captureClosing.store(true);engine->preview(nullptr);engine->stop();
+    TakeCheckpoint recovery;auto result=prepareTakeCheckpoint(project,currentFile==File()?root:currentFile.getParentDirectory(),root.getChildFile("data/Recordings"),selectedTrack,window.clipBeat,device->getCurrentSampleRate(),channels,window.frames,recovery);
+    if(result.failed()){captureClosing.store(false);status="Take was not armed: "+result.getErrorMessage();return;}takeFile=recovery.audio();activeTakeCheckpoint=recovery;
+    result=recorder.start(takeFile,device->getCurrentSampleRate(),channels,maximum,&recovery);if(result.failed()){activeTakeCheckpoint.reset();captureClosing.store(false);status=result.getErrorMessage();return;}
+    checkpoint();takeOldLoop=project.loop;takeOldMode=project.songMode;takeRestoreMode=true;takeRestoreLoop=true;project.songMode=true;project.loop=false;takeTempo=project.bpm;takeTrack=selectedTrack;takeBeat=window.clipBeat;takeGateEnd=plan.endBeat;takeAlignmentSamples=alignment;takeAlignmentRate=device->getCurrentSampleRate();
     takeScheduled=true;captureScheduled.store(true);recordDeviceStopped.store(false);recording=true;changed();
-    if(!engine->beginTake(plan)){recorder.finish();recording=false;captureClosing.store(false);restoreTakeTransport();status="Recording command queue busy. Try REC again.";return;}
-    captureClosing.store(false);showPane(playlistPane);status="Audio take armed for up to "+String(recorder.limitSeconds()/60,2)+" min (time/cache/timeline limit). Pattern length is ignored. Count-in/pre-roll are not written. REC or Stop finishes early.";
+    if(!engine->beginTake(plan)){recorder.finish();activeTakeCheckpoint.reset();recording=false;captureClosing.store(false);restoreTakeTransport();status="Recording command queue busy. Try REC again.";return;}
+    captureClosing.store(false);showPane(playlistPane);status="Audio take armed for up to "+String(recorder.limitSeconds()/60,2)+" min (time/buffer/timeline limit). Pattern length is ignored. Count-in/pre-roll are not written. REC or Stop finishes at the last received input frame. Alignment: "+String(alignment)+" samples."+(window.limited?" Timeline boundary shortened the aligned take.":String());
 }
 void Studio::restoreTakeTransport(){
     bool republish=false;if(takeRestoreLoop){project.loop=takeOldLoop;takeRestoreLoop=false;republish=true;}if(takeRestoreMode){project.songMode=takeOldMode;takeRestoreMode=false;republish=true;}
@@ -38,11 +46,17 @@ void Studio::restoreTakeTransport(){
 }
 void Studio::finishAudioRecording(){
     if(!recording)return;
+    if(longNotesActive){finishLongNotes();return;}
     if(!audioRecordMode){releaseKeys();recordedKeys.clear();recording=false;engine->stop();restoreTakeTransport();status="Keyboard take finished. Notes are in the active pattern; Ctrl+Z undoes the take.";return;}
     captureClosing.store(true);while(captureCallbacks.load()>0)std::this_thread::yield();engine->stop();auto result=recorder.finish();recording=false;captureClosing.store(false);
-    if(recorder.frames()>0&&project.clips.size()<maxClips){takeRestoreMode=false;Clip c;c.track=takeTrack;c.beat=takeBeat;c.length=recorder.frames()/recorder.rate()*takeTempo/60;c.audioPath=takeFile.getFullPathName();project.clips.push_back(c);selectedClip=(int)project.clips.size()-1;changed();status=result.wasOk()?"Take saved locally: "+takeFile.getFileName()+". Audio is now in the Playlist."+(recorder.reachedLimit()?" Selected recording limit reached.":String()):result.getErrorMessage();}
+    if(recorder.flushedFrames()>0&&project.clips.size()<maxClips){takeRestoreMode=false;Clip c;c.track=takeTrack;c.beat=takeBeat;c.length=recorder.flushedFrames()/recorder.rate()*takeTempo/60;c.audioPath=takeFile.getFullPathName();project.clips.push_back(c);selectedClip=(int)project.clips.size()-1;changed();status=result.wasOk()?"Take saved locally: "+takeFile.getFileName()+". Audio is now in the Playlist."+(recorder.reachedLimit()?" Selected recording limit reached.":String()):result.getErrorMessage();}
     else{publish();status=result.failed()?result.getErrorMessage():"Take cancelled before capture; no Playlist clip was added.";}
     restoreTakeTransport();
+    if(activeTakeCheckpoint&&takeFile==activeTakeCheckpoint->audio()){
+        TakeCheckpoint latest;auto read=readTakeCheckpoint(activeTakeCheckpoint->directory,latest);
+        if(read.wasOk()&&latest.frames==recorder.flushedFrames()){auto complete=completeTakeCheckpoint(latest,project,currentFile==File()?root:currentFile.getParentDirectory());if(complete.failed())status+=" Recovery acknowledgement failed; checkpoint retained: "+complete.getErrorMessage();}
+        else status+=" Earlier take checkpoint retained for recovery review.";activeTakeCheckpoint.reset();
+    }
 }
 
 void Studio::editAudioClip(){

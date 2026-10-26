@@ -6,10 +6,11 @@ namespace pulse {
 using namespace juce;
 void Studio::showModulationParameterMenu(int action,int track){
     if(action<flangerMix||action>phaserWidth||track< -1||track>=(int)project.tracks.size()||recording||recorder.isActive())return;
-    auto kind=action>=phaserMix?ModulationKind::phaser:ModulationKind::flanger;int first=kind==ModulationKind::phaser?phaserMix:flangerMix;auto sourceRevision=revision;PopupMenu menu;menu.addItem(1,"Reset");menu.addItem(2,"Type in value...");auto safe=Component::SafePointer<Studio>(this);
+    auto kind=action>=phaserMix?ModulationKind::phaser:ModulationKind::flanger;int first=kind==ModulationKind::phaser?phaserMix:flangerMix;auto sourceRevision=revision;PopupMenu menu;menu.addItem(1,"Reset");menu.addItem(2,"Type in value...");menu.addItem(3,"Create automation clip");auto safe=Component::SafePointer<Studio>(this);
     menu.showMenuAsync(menuOptions(),[safe,action,track,sourceRevision,kind,first](int result){
         if(!safe||result==0)return;
         if(safe->recording||safe->recorder.isActive()||safe->revision!=sourceRevision||safe->effectTarget()!=track){safe->status="Channel changed. Reopen the modulation parameter.";return;}
+        if(result==3){safe->createAutomation(action,track);return;}
         if(result==2){safe->editModulationValue(kind,action-first);return;}
         if(result==1){int i=action-first;safe->checkpoint();safe->setParameter(action,track,(float)modulationNormal(kind,i,modulationSpecs(kind)[(size_t)i].initial));}
     });

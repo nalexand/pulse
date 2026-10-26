@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 #include "Studio.h"
 #include <cmath>
+#include <cstdlib>
 
 namespace pulse {
 using namespace juce;
@@ -8,7 +9,12 @@ void Studio::mouseDown(const MouseEvent& e){
     if(playlistDragSource||dragAction==playlistLasso||dragAction==playlistLoopDrag){cancelPlaylistGesture();status="Playlist gesture cancelled.";return;}
     if(recording){for(auto it=hits.rbegin();it!=hits.rend();++it)if(it->rect.contains(e.position)){if(it->action==record&&e.mods.isRightButtonDown())perform(recordingOpen);else if(it->action==record||it->action==stop||it->action==play||it->action==monitorToggle||it->action==monitorLevelChange||it->action==recordingOpen||(it->action>=analyzerOpen&&it->action<=analyzerBack))perform(it->action,it->data);else status="Finish the current take with REC or Stop before editing.";return;}return;}
     grabKeyboardFocus();dragAction=0;for(auto it=hits.rbegin();it!=hits.rend();++it)if(it->rect.contains(e.position)){
-        Hit hit=*it;if(hit.pane==pianoPane&&pianoRect.contains(e.position))pianoNoteCursor=snapped(pianoStart+(e.position.x-pianoRect.getX())/pianoRect.getWidth()*pianoSpan);dragOrigin=e.position;dragData=hit.data;dragExtra=hit.extra;if(hit.pane>=0){activePane=hit.pane;paneOrder.erase(std::remove(paneOrder.begin(),paneOrder.end(),hit.pane),paneOrder.end());paneOrder.push_back(hit.pane);}
+        Hit hit=*it;
+        if(automationWriteMouseDown(hit,e))return;
+        if(hit.action==automationWriteMode||hit.action==automationWriteStart||hit.action==automationWriteApply||hit.action==automationWriteDiscard){perform(hit.action,hit.data);return;}
+        if(automationWriteContext&&automationWriteNavigation(hit.action,hit.data)&&hit.action!=paneMove&&hit.action!=paneResize){perform(hit.action,hit.data);return;}
+        if(automationWriteContext&&hit.action!=play&&hit.action!=stop&&hit.action!=paneMove&&hit.action!=paneResize){status="Record with Write or the linked knob/fader; finish and Apply or Discard before editing.";return;}
+        if(hit.pane==pianoPane&&pianoRect.contains(e.position))pianoNoteCursor=snapped(pianoStart+(e.position.x-pianoRect.getX())/pianoRect.getWidth()*pianoSpan);dragOrigin=e.position;dragData=hit.data;dragExtra=hit.extra;if(hit.pane>=0){activePane=hit.pane;paneOrder.erase(std::remove(paneOrder.begin(),paneOrder.end(),hit.pane),paneOrder.end());paneOrder.push_back(hit.pane);}
         if(hit.action==browserEntry&&hit.data>=0&&hit.data<(int)libraryEntries.size()&&libraryEntries[(size_t)hit.data].existsAsFile()){auto file=libraryEntries[(size_t)hit.data];BrowserAsset asset{{},file.getFileName(),file,0,0,false,true};if(e.mods.isRightButtonDown())showBrowserSampleMenu(asset);else{browserDraggingAsset=asset;browserDragRevision=revision;browserDragTrack=selectedTrack;}return;}
         if(hit.action==browserAsset){if(e.mods.isRightButtonDown()){if(hit.data>=0&&hit.data<(int)browserAssets.size())showBrowserSampleMenu(browserAssets[(size_t)hit.data]);return;}if(hit.data>=0&&hit.data<(int)browserAssets.size()){browserDraggingAsset=browserAssets[(size_t)hit.data];browserDragRevision=revision;browserDragTrack=selectedTrack;}return;}
         if(hit.action==markerHit){if(hit.data<0||hit.data>=(int)project.markers.size())return;dragSongMarker=project.markers[(size_t)hit.data];selectedMarker=dragSongMarker.id;if(e.mods.isRightButtonDown()){showMarkerMenu(dragSongMarker.beat,selectedMarker);return;}dragAction=markerHit;dragMarkerCheckpoint=false;repaint();return;}
@@ -16,7 +22,16 @@ void Studio::mouseDown(const MouseEvent& e){
         if(hit.action==playlistLoopSelection&&e.mods.isRightButtonDown()){perform(playlistLoopClear);return;}
         if(playlistLoopMouseDown(hit,e))return;
         if(hit.action==markerRail||(hit.action==seekRuler&&hit.data==playlistPane&&e.mods.isRightButtonDown())){double beat=jlimit(0.,4096.,snapped(playlistStart+(e.position.x-arrangeRect.getX())/arrangeRect.getWidth()*playlistSpan,e.mods.isAltDown()));editCursorBeat=beat;if(e.mods.isRightButtonDown())showMarkerMenu(beat);else engine->seekRequested.store(beat);return;}
-        if(hit.action==synthValue){if(pendingNoteTool()||!isSynth(project.tracks[(size_t)selectedTrack].instrument))return;if(e.mods.isRightButtonDown()){editSynthValue(hit.data);return;}dragAction=synthValue;dragData=hit.data;dragExtra=selectedTrack;dragValue=(float)synthParameterNormal(hit.data,synthParameterValue(project.tracks[(size_t)selectedTrack],hit.data));checkpoint();if(e.mods.isAltDown()){Track defaults;changeSynthValue(hit.data,synthParameterValue(defaults,hit.data),false);dragAction=0;}return;}
+        if(e.mods.isRightButtonDown()&&e.mods.isShiftDown()){
+            int target=-1,destination=effectTarget();
+            if(hit.action==masterSoftClipToggle){target=120;destination=-1;}
+            else if(hit.action==mute&&hit.data>=0&&hit.data<(int)project.tracks.size()){target=121;destination=hit.data;}
+            else if(hit.action==effectToggle&&hit.data>=0&&hit.data<builtinEffectCount)target=101+hit.data;
+            else if(hit.action==synthWave){target=hit.data==2?automationSynthFirst+24:hit.data>=0&&hit.data<=1?automationWaveFirst+hit.data:-1;destination=selectedTrack;}
+            else if(hit.action==stereoEnable||hit.action==stereoMono||hit.action==stereoSwap||hit.action==stereoInvertLeft||hit.action==stereoInvertRight||hit.action==dynamicsModeMenu||hit.action==distMode)target=automationTargetFor(hit.action,destination);
+            if(target>=0){createParameterAutomation(target,destination,revision);return;}
+        }
+        if(hit.action==synthValue){if(pendingNoteTool()||!isSynth(project.tracks[(size_t)selectedTrack].instrument))return;if(e.mods.isRightButtonDown()){if(e.mods.isShiftDown())createParameterAutomation(automationSynthFirst+hit.data,selectedTrack,revision);else editSynthValue(hit.data);return;}dragAction=synthValue;dragData=hit.data;dragExtra=selectedTrack;dragValue=(float)synthParameterNormal(hit.data,synthParameterValue(project.tracks[(size_t)selectedTrack],hit.data));checkpoint();if(e.mods.isAltDown()){Track defaults;changeSynthValue(hit.data,synthParameterValue(defaults,hit.data),false);dragAction=0;}return;}
         if(hit.action==noteToolValue){dragAction=noteToolValue;setNoteToolValue(hit.data,(e.position.x-hit.rect.getX())/hit.rect.getWidth());return;}
         if(noteToolCurrent()&&(hit.action==noteHit||hit.action==pianoGrid||hit.action==velocityDrag||hit.action==rackGrid)){cancelNoteTool();status="Note preview cancelled. Edit the original notes, then reopen the tool.";return;}
         if(hit.action==scaleToggle&&e.mods.isRightButtonDown()){perform(harmonySettingsOpen);return;}
@@ -33,10 +48,12 @@ void Studio::mouseDown(const MouseEvent& e){
         if(hit.action==patternMenu&&e.mods.isRightButtonDown()){renamePattern();return;}
         if(hit.action==waveGrid){if(e.mods.isRightButtonDown()){perform(waveEditMenu);return;}if(e.mods.isAltDown()){toggleWaveMarker(waveTime(e.position.x));return;}dragAction=waveGrid;waveAnchor=waveTime(e.position.x);selectWave(waveAnchor);return;}
         if(automationMouseDown(hit,e))return;
+        if(e.mods.isRightButtonDown()&&e.mods.isShiftDown()&&automationTargetFor(hit.action,hit.data)>=0){createAutomation(hit.action,hit.data);return;}
         if(hit.action==stereoWidth||hit.action==stereoTrim){
             if(e.mods.isRightButtonDown()){showStereoParameterMenu(hit.action,hit.data);return;}
             if(e.mods.isAltDown()||e.mods.isMiddleButtonDown()){checkpoint();setParameter(hit.action,hit.data,hit.action==stereoWidth?.5f:.8f);return;}
         }
+        if(hit.action>=delayRepeats&&hit.action<=distOutput){bool echo=hit.action<=delayMix;int i=hit.action-(echo?delayRepeats:distDrive);auto spec=echo?echoSpecs()[(size_t)i]:distortionSpecs()[(size_t)i];if(e.mods.isRightButtonDown()){editCreativeParameter(hit.action,hit.data);return;}if(e.mods.isAltDown()||e.mods.isMiddleButtonDown()){checkpoint();setParameter(hit.action,hit.data,(float)creativeNormal(spec,spec.initial));return;}}
         if(hit.action>=flangerMix&&hit.action<=phaserWidth){
             if(e.mods.isRightButtonDown()){showModulationParameterMenu(hit.action,hit.data);return;}
             if(e.mods.isAltDown()||e.mods.isMiddleButtonDown()){auto kind=hit.action>=phaserMix?ModulationKind::phaser:ModulationKind::flanger;int i=hit.action-(kind==ModulationKind::phaser?phaserMix:flangerMix);checkpoint();setParameter(hit.action,hit.data,(float)modulationNormal(kind,i,modulationSpecs(kind)[(size_t)i].initial));return;}
@@ -46,15 +63,16 @@ void Studio::mouseDown(const MouseEvent& e){
             if(e.mods.isAltDown()||e.mods.isMiddleButtonDown()){checkpoint();int i=hit.action-chorusMix;setParameter(hit.action,hit.data,(float)chorusNormal(i,chorusParameterSpecs()[(size_t)i].initial));return;}
         }
         if(((hit.action>=compThreshold&&hit.action<=compMakeup)||(hit.action>=dynamicsRange&&hit.action<=dynamicsKnee))&&e.mods.isRightButtonDown()){editDynamicsValue(hit.action,hit.data);return;}
+        if(hit.action>=auxLevel1&&hit.action<=auxLevel4&&e.mods.isShiftDown()&&e.mods.isRightButtonDown()){createAutomation(hit.action,hit.data);return;}
         if(isParameter(hit.action)){
             auto defaultValue=[&]()->float{switch(hit.action){case panDial:return .5f;case bpmDial:return(118-30)/270.f;case masterDial:return.8f;case masterDelayReturn:return .5f;case masterDelayFeedback:return .3f/.8f;case volumeDial:case mixFader:return hit.data<0?.8f:(project.tracks[(size_t)hit.data].isBus?1.f:.7f)/1.5f;case cutoffDial:return(float)(std::log(16000./60)/std::log(20000./60));case attackDial:return(float)(std::log(5.)/std::log(2000.));case releaseDial:return(float)(std::log(9.)/std::log(150.));case noteVelocity:return.8f;case noteProbability:return 1.f;case eqLow:case eqMid:case eqHigh:case reverbRoom:case reverbDamping:return .5f;case dynamicsRange:return 60/96.f;case dynamicsHysteresis:return .25f;case dynamicsHold:return .05f;case dynamicsKnee:return 0;case compThreshold:return .7f;case compRatio:return 3/19.f;case compAttack:return 9.9f/99.9f;case compRelease:return 115/995.f;case compMakeup:return 1/3.f;case reverbMix:return .15f;default:return 0.f;}};
             if(e.mods.isAltDown()||e.mods.isMiddleButtonDown()){checkpoint();setParameter(hit.action,hit.data,defaultValue());return;}
             if(e.mods.isRightButtonDown()){
                 PopupMenu m;m.addItem(1,"Reset");m.addItem(2,"Type in value...");if(automationTargetFor(hit.action,hit.data)>=0)m.addItem(3,"Create automation clip");if(hit.action==bpmDial)m.addItem(4,"Tap tempo / recording setup...");auto safe=Component::SafePointer<Studio>(this);float defaultVal=defaultValue();auto sourceRevision=revision;
                 m.showMenuAsync(menuOptions(),[safe,hit,defaultVal,sourceRevision](int result){if(!safe||result==0)return;if(safe->recording||safe->recorder.isActive()||safe->revision!=sourceRevision||(hit.action>=eqLow&&hit.action<=reverbDamping&&safe->effectTarget()!=hit.data)){safe->status="Parameter target changed. Reopen the control.";return;}if(result==4){safe->perform(recordingOpen);return;}if(result==3){safe->createAutomation(hit.action,hit.data);return;}if(result==1){safe->checkpoint();safe->setParameter(hit.action,hit.data,defaultVal);return;}
-                    bool tempo=hit.action==bpmDial;auto* d=new AlertWindow(tempo?"Tempo":"Parameter value",tempo?"BPM (30-300)":"Normalized value (0-100%)",MessageBoxIconType::NoIcon,safe.getComponent());
-                    d->addTextEditor("value",String(tempo?safe->project.bpm:safe->parameterValue(hit.action,hit.data)*100,tempo?3:2));d->addButton("Accept",1,KeyPress(KeyPress::returnKey));d->addButton("Cancel",0,KeyPress(KeyPress::escapeKey));
-                    d->enterModalState(true,ModalCallbackFunction::create([safe,hit,d,tempo,sourceRevision](int r){if(!safe||r!=1)return;if(safe->recording||safe->recorder.isActive()||safe->revision!=sourceRevision||(hit.action>=eqLow&&hit.action<=reverbDamping&&safe->effectTarget()!=hit.data)){safe->status="Parameter target changed. Reopen the control.";return;}auto content=d->getTextEditorContents("value").trim();if(content.isEmpty()||!content.containsOnly("0123456789.-"))return;double v=content.getDoubleValue();if(!std::isfinite(v))return;safe->checkpoint();safe->setParameter(hit.action,hit.data,(float)(tempo?(v-30)/270:v/100));}),true);
+                    bool tempo=hit.action==bpmDial,aux=hit.action>=auxLevel1&&hit.action<=auxLevel4;auto* d=new AlertWindow(tempo?"Tempo":"Parameter value",tempo?"BPM (30-300)":aux?"Auxiliary send level (0-150%)":"Normalized value (0-100%)",MessageBoxIconType::NoIcon,safe.getComponent());
+                    d->addTextEditor("value",String(tempo?safe->project.bpm:safe->parameterValue(hit.action,hit.data)*(aux?150:100),tempo?3:2));d->addButton("Accept",1,KeyPress(KeyPress::returnKey));d->addButton("Cancel",0,KeyPress(KeyPress::escapeKey));
+                    d->enterModalState(true,ModalCallbackFunction::create([safe,hit,d,tempo,aux,sourceRevision](int r){if(!safe||r!=1)return;if(safe->recording||safe->recorder.isActive()||safe->revision!=sourceRevision||(hit.action>=eqLow&&hit.action<=reverbDamping&&safe->effectTarget()!=hit.data)){safe->status="Parameter target changed. Reopen the control.";return;}auto content=d->getTextEditorContents("value").trim();if(content.isEmpty()||!content.containsOnly("0123456789.-"))return;double v=content.getDoubleValue();if(!std::isfinite(v))return;if(aux){char* end=nullptr;auto* begin=content.toRawUTF8();v=std::strtod(begin,&end);if(end==begin||*end||!std::isfinite(v)||v<0||v>150||safe->selectedTrack!=hit.data||safe->pendingNoteTool()||safe->automationWriteContext||safe->exporting.load()){safe->status="Send target changed, app busy or level outside 0-150%. Reopen the control.";return;}if(safe->parameterValue(hit.action,hit.data)==(float)(v/150))return;}safe->checkpoint();safe->setParameter(hit.action,hit.data,(float)(tempo?(v-30)/270:v/(aux?150:100)));}),true);
                 });return;
             }
             checkpoint();dragAction=hit.action;dragValue=parameterValue(hit.action,hit.data);return;
@@ -110,6 +128,7 @@ void Studio::mouseDown(const MouseEvent& e){
     }
 }
 void Studio::mouseDrag(const MouseEvent& e){
+    if(dragAction==automationWriteControl){automationWriteMouseDrag(e);return;}
     if(browserDraggingAsset){status="Drop "+browserDraggingAsset->name+" onto a Channel rack or Mixer channel.";return;}
     if(recording)return;
     if(playlistLoopMouseDrag(e))return;
@@ -145,18 +164,19 @@ void Studio::mouseDrag(const MouseEvent& e){
     }
     if(dragAction==clipHit&&dragData<(int)project.clips.size()){
         auto& c=project.clips[(size_t)dragData];double delta=snapped((e.position.x-dragOrigin.x)/arrangeRect.getWidth()*playlistSpan,e.mods.isAltDown());
-        auto* sample=clipSamples[(size_t)dragData];
-        if(dragExtra==1){double available=600;if(c.isAudio()&&sample)available=jmax(.001,(sample->audio.getNumSamples()/sample->sampleRate-c.sourceOffset)*project.bpm/60);c.length=jlimit(.001,available,dragClip.length+delta);}
+        const auto& sample=clipSamples[(size_t)dragData];
+        if(dragExtra==1){double available=600;if(c.isAudio()&&sample)available=jmax(.001,(sample->frameCount()/sample->sampleRate-c.sourceOffset)*project.bpm/60);c.length=jlimit(.001,available,dragClip.length+delta);}
         else if(dragExtra==2){delta=jlimit(jmax(-dragClip.beat,-dragClip.sourceOffset*project.bpm/60),dragClip.length-.001,delta);c.beat=dragClip.beat+delta;c.length=dragClip.length-delta;c.sourceOffset=dragClip.sourceOffset+delta*60/project.bpm;}
         else{c.beat=jlimit(0.,4096.,dragClip.beat+delta);c.track=jlimit(0,(int)project.tracks.size()-1,dragClip.track+(int)std::round((e.position.y-dragOrigin.y)/playlistLaneHeight));}
         c.fadeIn=jmin(c.fadeIn,c.length);c.fadeOut=jmin(c.fadeOut,c.length);changed();
     }
 }
-void Studio::mouseUp(const MouseEvent& e){if(finishBrowserAssetGesture(e))return;if(playlistLoopMouseUp(e))return;if(playlistMouseUp(e))return;if(dragAction==markerHit&&!dragMarkerCheckpoint&&dragExtra==0)jumpToMarker(selectedMarker);if(mousePitch>=0){engine->audition(mousePitchTrack,mousePitch,false);mousePitch=-1;}if(dragAction==paneMove||dragAction==paneResize||dragAction==browserResize)saveLayout();dragAction=0;selectionBox={};repaint();}
-void Studio::mouseDoubleClick(const MouseEvent& e){if(recording)return;for(auto it=hits.rbegin();it!=hits.rend();++it)if(it->rect.contains(e.position)){
+void Studio::mouseUp(const MouseEvent& e){if(dragAction==automationWriteControl)engine->automationWrite.control(automationWriteValue,false);if(finishBrowserAssetGesture(e))return;if(playlistLoopMouseUp(e))return;if(playlistMouseUp(e))return;if(dragAction==markerHit&&!dragMarkerCheckpoint&&dragExtra==0)jumpToMarker(selectedMarker);if(mousePitch>=0){engine->audition(mousePitchTrack,mousePitch,false);mousePitch=-1;}if(dragAction==paneMove||dragAction==paneResize||dragAction==browserResize)saveLayout();dragAction=0;selectionBox={};repaint();}
+void Studio::mouseDoubleClick(const MouseEvent& e){if(recording||automationWriteContext)return;for(auto it=hits.rbegin();it!=hits.rend();++it)if(it->rect.contains(e.position)){
     auto h=*it;if(noteToolCurrent()&&h.action==noteHit){cancelNoteTool();return;}if(h.action==markerHit||h.action==markerSelect){if(h.data>=0&&h.data<(int)project.markers.size()){auto marker=project.markers[(size_t)h.data];selectedMarker=marker.id;editSongMarker(marker.isSection(),marker.id);}}else if(h.action==browserEntry){browserDraggingAsset.reset();performSampleAction(browserEntry,h.data);if(h.data>=0&&h.data<(int)libraryEntries.size()&&libraryEntries[(size_t)h.data].existsAsFile())openWaveform(libraryEntries[(size_t)h.data]);}else if(h.action==paneMove)perform(paneMaximize,h.data);else if(h.action==clipHit){selectedClip=h.data;auto c=project.clips[(size_t)h.data];if(c.isAutomation()){selectedPoint=-1;showPane(automationPane);}else if(c.isAudio())editAudioClip();else{perform(patternSelect,c.pattern);perform(pianoOpen,c.track);}}
     else if(h.action==trackSelect){selectedTrack=h.data;editName(false);}else if(h.action==noteHit){selectedNote=h.data;selectedNotes={h.data};showPane(channelPane);}else if(h.action==patternMenu)renamePattern();else if(h.action==pianoOpen)perform(pianoOpen,h.data);return;}}
 void Studio::mouseWheelMove(const MouseEvent& e,const MouseWheelDetails& wheel){
+    if(automationWriteContext)return;
     if(recording)return;
     if(browserVisible&&!browserLocal&&browserTreeRect.contains(e.position)){browserTreeScroll=jlimit(0,browserTreeMaximum,browserTreeScroll+(wheel.deltaY<0?69:-69));repaint();return;}
     for(auto it=hits.rbegin();it!=hits.rend();++it)if(it->rect.contains(e.position)){auto h=*it;
@@ -179,6 +199,7 @@ void Studio::mouseWheelMove(const MouseEvent& e,const MouseWheelDetails& wheel){
     }
 }
 bool Studio::keyPressed(const KeyPress& k){
+    if(automationWriteContext){if(k.getKeyCode()==KeyPress::escapeKey)discardAutomationWrite();else if(k.getKeyCode()==KeyPress::spaceKey||k.getKeyCode()==KeyPress::homeKey)perform(stop);else {auto command=findShortcut(shortcutSettings,shortcutForKey(k),typingEnabled);if(command=="window.playlist"||command=="window.rack"||command=="window.piano"||command=="window.mixer"||command=="window.cycle")dispatchShortcut(command);else status="Finish and Apply or Discard the automation pass before editing.";}return true;}
     if(k.getKeyCode()==KeyPress::escapeKey&&(dragAction==playlistGroupDrag||dragAction==playlistLasso||dragAction==playlistLoopDrag)){cancelPlaylistGesture();status="Playlist gesture cancelled.";return true;}
     if(commandPalette&&commandPalette->isVisible())return false;
     if(k.getKeyCode()==KeyPress::escapeKey&&browserDraggingAsset){browserDraggingAsset.reset();status="Browser sound assignment cancelled.";repaint();return true;}
@@ -186,7 +207,7 @@ bool Studio::keyPressed(const KeyPress& k){
     auto chord=shortcutForKey(k);auto command=findShortcut(shortcutSettings,chord,typingEnabled);
     if(recording){if(key==KeyPress::spaceKey||key==KeyPress::escapeKey){perform(stop);return true;}if(command.isNotEmpty()){dispatchShortcut(command);return true;}if(audioRecordMode||mods.isCommandDown()||mods.isAltDown())return true;int offset=typingKeyOffset(key,k.getTextCharacter());if(offset>=0&&!heldKeys.count(key))typingKeyOn(key,(octave+1)*12+offset);return true;}
     if(key==KeyPress::escapeKey&&engine->previewPlaying.load()){perform(browserPreviewStop);return true;}
-    if(key==KeyPress::escapeKey){if(exporting.load()){cancelExport.store(true);return true;}if(archiveBusy){perform(projectArchiveCancel);return true;}perform(paneClose,activePane);return true;}
+    if(key==KeyPress::escapeKey){if(bounceTask&&!bounceReviewed){discardTrackBounce();return true;}if(exporting.load()){cancelExport.store(true);return true;}if(archiveBusy){perform(projectArchiveCancel);return true;}perform(paneClose,activePane);return true;}
     if(dispatchShortcut(command))return true;
     if(mods.isCommandDown()||mods.isAltDown())return false;
     if(typingEnabled){int offset=typingKeyOffset(key,k.getTextCharacter());if(offset>=0){if(!heldKeys.count(key))typingKeyOn(key,(octave+1)*12+offset);return true;}}
@@ -195,5 +216,5 @@ bool Studio::keyPressed(const KeyPress& k){
 }
 bool Studio::keyStateChanged(bool){std::vector<int> released;for(const auto& [key,note]:heldKeys)if(!KeyPress::isKeyCurrentlyDown(key))released.push_back(key);for(int key:released)typingKeyOff(key);return true;}
 void Studio::releaseKeys(){for(const auto& [key,note]:heldKeys)releaseTypingNote(note);heldKeys.clear();for(const auto& note:sustainedKeys)releaseTypingNote(note);sustainedKeys.clear();if(mousePitch>=0){engine->audition(mousePitchTrack,mousePitch,false);mousePitch=-1;}repaint();}
-void Studio::focusLost(FocusChangeType){cancelPlaylistGesture();browserDraggingAsset.reset();releaseKeys();}
+void Studio::focusLost(FocusChangeType){if(dragAction==automationWriteControl){engine->automationWrite.control(automationWriteValue,false);dragAction=0;}cancelPlaylistGesture();browserDraggingAsset.reset();releaseKeys();}
 }

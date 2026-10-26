@@ -51,7 +51,7 @@ void Studio::paintLocalBrowser(Graphics& g,Rectangle<float> r){
     g.restoreState();button(g,"Open audio editor...",{8,r.getBottom()-62,browserWidth-16,25},waveformOpen);button(g,"Stop preview",{8,r.getBottom()-31,browserWidth-16,25},waveStop);
 }
 void Studio::openWaveform(const File& file,double start,double end){
-    String error;auto* source=assets.load(file,error);if(!source){status=error;return;}
+    String error;auto source=assets.load(file,error);if(!source){status=error;return;}
     engine->preview(nullptr);waveFile=file;waveSample=source;waveHistory.clear();waveRedoHistory.clear();waveMarkers.clear();++waveRevision;double duration=source->audio.getNumSamples()/source->sampleRate;
     waveViewStart=0;waveSpan=duration;waveStart=jlimit(0.,jmax(0.,duration-1/source->sampleRate),start);waveEnd=end>0?jlimit(waveStart+1/source->sampleRate,duration,end):duration;
     showPane(wavePane);status="Drag to select audio. Wheel zooms; Shift+wheel scrolls. Edits create local copies.";

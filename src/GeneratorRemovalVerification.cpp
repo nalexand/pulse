@@ -1,0 +1,21 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+#include "Studio.h"
+namespace pulse {
+using namespace juce;
+void Studio::runGeneratorRemovalChecks(const File& folder,const std::function<void(bool,const String&)>& check){
+    auto saved=project;auto file=currentFile;auto undo=undoStack,redo=redoStack;bool wasDirty=dirty;auto rev=revision;int track=selectedTrack;auto expanded=browserExpanded;
+    perform(stop);cancelNoteTool();closeCommandPalette();project=emptyProject();currentFile={};selectedTrack=7;project.patterns[0].lanes[7]={{0,1,60}};publish();undoStack.clear();redoStack.clear();
+    check(factorySynthPresets().size()==72&&instrumentCount==14&&searchCommands(paletteEntries(),"Pulse Granular").empty(),"removed generator and eight sounds disappear from ADD/search/catalog");
+    browserVisible=true;browserLocal=false;browserExpanded.fill(true);Image image(Image::ARGB,getWidth(),getHeight(),true);Graphics graphics(image);paint(graphics);bool absent=true;for(const auto& asset:browserAssets)absent&=!asset.soundId.startsWith("factory-14-");check(absent,"main Browser has no removed generator sounds");
+    var reply;check(handleControlCommand("list_sounds",var(new DynamicObject()),reply).wasOk()&&reply["factorySounds"].getArray()->size()==72&&!reply["instruments"].toString().contains("granular"),"MCP discovery exposes the retained 72-sound instrument set");
+    auto before=JSON::toString(projectToJson(project));var args(new DynamicObject());args.getDynamicObject()->setProperty("expected_revision",(int64)revision);args.getDynamicObject()->setProperty("operations",JSON::parse(R"([{"op":"set_song","title":"Must not apply"},{"op":"set_track","track":7,"instrument":"granular"}])"));check(handleControlCommand("edit",args,reply).failed()&&undoStack.empty()&&JSON::toString(projectToJson(project))==before,"removed MCP instrument cannot alter notes, title or history");
+    auto old=projectToJson(project);old.getDynamicObject()->setProperty("schema",26);Project read;check(projectFromJson(old,read).wasOk()&&read.patterns[0].lanes[7]==project.patterns[0].lanes[7],"ordinary 0.78 project data remains readable");old["tracks"].getArray()->getReference(7).getDynamicObject()->setProperty("instrument",14);check(projectFromJson(old,read).failed()&&read.patterns[0].lanes[7]==project.patterns[0].lanes[7],"removed legacy generator rejects without replacing a loaded song");
+    auto path=folder.getChildFile("retained-generators.pulse");check(saveProject(project,path).wasOk()&&loadProject(path,read).wasOk()&&(int)projectToJson(read)["schema"]==projectSchema,"retained generator projects save safely using current schema");check(applySynthPreset(factorySynthPresets()[64],7)&&project.tracks[7].instrument==Instrument::physical&&project.patterns[0].lanes[7].size()==1,"existing Resonator and notes still work after removal");snapshot(folder.getChildFile("retained-generators.png"));
+    perform(stop);project=std::move(saved);currentFile=file;undoStack=std::move(undo);redoStack=std::move(redo);dirty=wasDirty;revision=rev;selectedTrack=track;browserExpanded=expanded;publish();
+}
+void Studio::runGeneratorRemovalTransportTick(){
+    if(transportTicks!=8000)return;
+    auto put=[&](const char* name,bool ok){transportResults.getDynamicObject()->setProperty(name,ok);};perform(stop);cancelNoteTool();project=emptyProject();selectedTrack=7;currentFile={};project.loop=true;project.patterns[0].lanes[7]={{0,2,60,.8f}};publish();
+    put("nativeRemovalCatalog",factorySynthPresets().size()==72&&instrumentCount==14&&searchCommands(paletteEntries(),"Pulse Granular").empty());put("nativeRemovalResonator",applySynthPreset(factorySynthPresets()[64],7));auto old=projectToJson(project);old.getDynamicObject()->setProperty("schema",26);Project read;put("nativeRemovalLegacyRead",projectFromJson(old,read).wasOk());old["tracks"].getArray()->getReference(7).getDynamicObject()->setProperty("instrument",14);put("nativeRemovalLegacyReject",projectFromJson(old,read).failed());auto path=transportReport.getSiblingFile("native-retained-generators.pulse");put("nativeRemovalSave",saveProject(project,path).wasOk()&&loadProject(path,read).wasOk()&&(int)projectToJson(read)["schema"]==projectSchema);snapshot(transportReport.getSiblingFile("native-retained-generators.png"));
+}
+}

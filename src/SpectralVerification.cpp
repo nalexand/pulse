@@ -15,7 +15,7 @@ void spectralSnapshot(const File& file){if(auto* d=spectralDialog()){FileOutputS
 RestorationOptions spectralOptions(){RestorationOptions o;o.kind=RestorationKind::spectral;return o;}
 }
 void Studio::runSpectralChecks(const File& folder,const std::function<void(bool,const String&)>& check){
-    auto saved=project;auto previousFile=currentFile;auto undo=undoStack,redo=redoStack;auto rev=revision;bool wasDirty=dirty;int track=selectedTrack;auto wave=waveFile;auto* sample=waveSample;
+    auto saved=project;auto previousFile=currentFile;auto undo=undoStack,redo=redoStack;auto rev=revision;bool wasDirty=dirty;int track=selectedTrack;auto wave=waveFile;auto sample=waveSample;
     auto history=waveHistory,forward=waveRedoHistory;auto markers=waveMarkers;double a=waveStart,b=waveEnd,view=waveViewStart,span=waveSpan;auto options=restorationOptions;
     perform(stop);cancelNoteTool();discardRestoration();project=emptyProject();currentFile={};selectedTrack=7;publish();undoStack.clear();redoStack.clear();engine->prepare(48000);auto json=JSON::toString(projectToJson(project));auto currentRevision=revision;
     auto file=folder.getChildFile("spectral-source.wav");check(spectralFixture(file),"create stereo spectral fixture");auto hash=SHA256(file).toHexString();openWaveform(file);waveStart=.25;waveEnd=1.75;

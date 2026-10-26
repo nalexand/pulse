@@ -16,6 +16,14 @@ juce::Result transformPlaylistGroup(const Project&,const std::set<int>&,double d
 juce::Result insertPlaylistGroup(const Project&,const std::vector<Clip>&,double delta,int trackDelta,bool allowOverlap,Project&,PlaylistGroupStats* =nullptr);
 juce::Result deletePlaylistGroup(const Project&,const std::set<int>&,Project&);
 
+struct RippleStats {
+    int movedClips=0,removedClips=0,movedMarkers=0,removedMarkers=0;
+    bool punchReset=false,changed=false;
+};
+// Half-open delete range; insertion moves objects starting at the cut to its right.
+double rippleBeat(double beat,double start,double length,bool remove);
+juce::Result ripplePlaylist(const Project&,double start,double length,bool remove,Project&,RippleStats* =nullptr);
+
 inline constexpr const char* playlistLoopMarkerId="pulse-playlist-loop";
 juce::Result setPlaylistLoopRange(const Project&,double start,double end,Project&);
 juce::Result clearPlaylistLoopRange(const Project&,Project&);

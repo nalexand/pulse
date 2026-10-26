@@ -26,11 +26,12 @@ void Studio::chooseRouting(bool sidechain){
 void Studio::paintEffects(Graphics& g,Rectangle<float> r){
     if(analyzerView){paintAnalyzer(g,r);return;}
     if(masterEffectsView){paintMasterEffects(g,r);return;}
-    if(selectedEffect==6){paintStereo(g,r);return;}
-    const Colour text(0xffd9ddde),muted(0xffadb7bd),accent(0xffb2c98d);const auto& tr=project.tracks[(size_t)selectedTrack];const auto& fx=effectMixer(effectTarget());const bool master=editingMasterEffects();
-    g.setColour(Colour(0xff3b464c));g.fillRect(r);label(g,master?String("Master - inserts"):tr.name+(tr.isBus?" - bus":" - insert"),{r.getX()+12,r.getY()+4,r.getWidth()-440,25},13,text,true);
-    const char* tabs[]={"EQ","Dynamics","Reverb","Chorus","Flanger","Phaser"};const float widths[]={48,90,60,60,64,60};float tabX=r.getRight()-415;for(int i=0;i<6;++i){button(g,tabs[i],{tabX,r.getY()+5,widths[i],24},effectsTab,i,selectedEffect==i);tabX+=widths[i]+5;}
-    bool enabled=selectedEffect==0?fx.eq:selectedEffect==1?fx.compressor:selectedEffect==2?fx.reverb:selectedEffect==3?fx.chorus.enabled:selectedEffect==4?fx.flanger.enabled:fx.phaser.enabled;
+    if(selectedEffect==9){paintAuxLevels(g,r);return;}
+    if(selectedEffect==8){paintStereo(g,r);return;}
+    const Colour text(0xffd9ddde),muted(0xffadb7bd),accent(0xffb2c98d);const auto& tr=project.tracks[(size_t)selectedTrack];const auto fx=displayedEffectMixer(effectTarget());const bool master=editingMasterEffects();
+    g.setColour(Colour(0xff3b464c));g.fillRect(r);label(g,master?String("Master - inserts"):tr.name+(tr.isBus?" - bus":" - insert"),{r.getX()+12,r.getY()+4,r.getWidth()-545,25},13,text,true);
+    const char* tabs[]={"EQ","Dynamics","Reverb","Chorus","Flanger","Phaser","Delay","Distortion"};const float widths[]={36,68,52,52,54,52,48,66};float tabX=r.getRight()-523;for(int i=0;i<builtinEffectCount;++i){button(g,tabs[i],{tabX,r.getY()+5,widths[i],24},effectsTab,i,selectedEffect==i);tabX+=widths[i]+5;}
+    bool enabled=selectedEffect==0?fx.eq:selectedEffect==1?fx.compressor:selectedEffect==2?fx.reverb:selectedEffect==3?fx.chorus.enabled:selectedEffect==4?fx.flanger.enabled:selectedEffect==5?fx.phaser.enabled:selectedEffect==6?fx.delay.enabled:fx.distortion.enabled;
     button(g,enabled?"ENABLED":"BYPASSED",{r.getX()+13,r.getY()+40,106,25},effectToggle,selectedEffect,enabled);button(g,"Chain...",{r.getX()+131,r.getY()+40,84,25},effectsChainMenu);button(g,"Stereo...",{r.getX()+221,r.getY()+40,78,25},master?masterStereoOpen:stereoOpen);StringArray chain;for(int effect:fx.order)chain.add(effectName(effect,true));label(g,chain.joinIntoString(" > "),{r.getX()+310,r.getY()+40,r.getWidth()-323,25},9,muted);
     float x=r.getX()+18,y=r.getY()+90,w=(r.getWidth()-58)/2;
     auto control=[&](const String& title,int action,float value,int row,int column){dial(g,title,{x+column*(w+20),y+row*48,w,38},action,value,effectTarget());};
@@ -65,28 +66,30 @@ void Studio::paintEffects(Graphics& g,Rectangle<float> r){
         for(int i=0;i<6;++i){auto& spec=chorusParameterSpecs()[(size_t)i];double value=chorusValue(chorus,i);String display=(i==0||i==2||i==4||i==5)?String(value*100,0)+"%":String(value,i==1?2:1)+spec.unit;control(String(spec.name)+"  "+display,chorusMix+i,(float)chorusNormal(i,value),i/2,i%2);}
         label(g,"Stereo modulation with a dry signal at zero latency. Right-click a knob to type a value.",{x,y+155,r.getWidth()-38,30},11,muted);
     }
+    else if(selectedEffect==6||selectedEffect==7)paintCreativeEffects(g,{x,y,r.getWidth()-36,r.getHeight()-172});
     else{
         auto kind=selectedEffect==4?ModulationKind::flanger:ModulationKind::phaser;const auto& effect=selectedEffect==4?fx.flanger:fx.phaser;int first=selectedEffect==4?flangerMix:phaserMix;
         for(int i=0;i<6;++i){auto spec=modulationSpecs(kind)[(size_t)i];double v=modulationValue(effect,i);bool percentage=i==0||i==2||i==4||i==5;String display=percentage?String(v*100,0)+"%":String(v,i==1||selectedEffect==4?2:0)+spec.unit;control(String(spec.name)+"  "+display,first+i,(float)modulationNormal(kind,i,v),i/2,i%2);}
         label(g,selectedEffect==4?"Short stereo delay sweep / signed feedback / dry signal at zero latency":"Six all-pass stages / bounded feedback / independent stereo sweeps",{x,y+155,r.getWidth()-38,30},11,muted);
     }
     if(master){float bottom=r.getBottom()-72;button(g,"Master output / dry bypass",{x,bottom,r.getWidth()-154,27},masterEffectsOpen);button(g,"Stereo...",{r.getRight()-125,bottom,108,27},masterStereoOpen);label(g,"After channel mix, delay return and click; before Master level and soft saturation. Preview stays dry.",{x,bottom+33,r.getWidth()-36,25},10,muted);return;}
-    float bottom=r.getBottom()-72;button(g,"Output: "+(fx.output<0?String("Master"):project.tracks[(size_t)fx.output].name),{x,bottom,r.getWidth()-154,27},outputRoute);button(g,"Add bus",{r.getRight()-125,bottom,108,27},addBus);
+    float bottom=r.getBottom()-72;button(g,"Output: "+(fx.output<0?String("Master"):project.tracks[(size_t)fx.output].name),{x,bottom,r.getWidth()-334,27},outputRoute);button(g,"Levels",{r.getRight()-299,bottom,68,27},auxLevelsOpen);button(g,"Sends...",{r.getRight()-225,bottom,98,27},auxSendsOpen);button(g,"Add bus",{r.getRight()-125,bottom,108,27},addBus);
     label(g,"Routing processes sources before destinations. Feedback routes are disabled.",{x,bottom+33,r.getWidth()-36,25},10,muted);
 }
 void Studio::paintMasterEffects(Graphics& g,Rectangle<float> r){
     const Colour text(0xffd9ddde),muted(0xffadb7bd);g.setColour(Colour(0xff3b464c));g.fillRect(r);
     float x=r.getX()+16,y=r.getY()+9,w=r.getWidth()-32,column=(w-18)/2;
     label(g,"Master / Output processing",{x,y,w-200,25},13,text,true);
-    button(g,"Channel effects",{r.getRight()-190,y,174,25},effectsOpen,selectedEffect==6?0:selectedEffect);
-    button(g,project.masterSoftClip?"Soft saturation: ON":"Soft saturation: BYPASS",{x,y+39,column,28},masterSoftClipToggle,0,project.masterSoftClip);
+    button(g,"Channel effects",{r.getRight()-190,y,174,25},effectsOpen,selectedEffect==8?0:selectedEffect);
+    bool softClip=liveParameter(masterSoftClipToggle,-1,project.masterSoftClip?1.f:0.f)>=.5f;float delayReturn=liveParameter(masterDelayReturn,-1,project.delayReturn),feedback=liveParameter(masterDelayFeedback,-1,project.delayFeedback/.8f)*.8f;
+    button(g,softClip?"Soft saturation: ON":"Soft saturation: BYPASS",{x,y+39,column,28},masterSoftClipToggle,0,softClip);
     button(g,"Dry master",{x+column+18,y+39,column,28},masterDry);
-    dial(g,"Shared delay return  "+String(project.delayReturn*100,0)+"%",{x,y+89,column,42},masterDelayReturn,project.delayReturn,-1);
-    dial(g,"Delay feedback  "+String(project.delayFeedback*100,0)+"%",{x+column+18,y+89,column,42},masterDelayFeedback,project.delayFeedback/.8f,-1);
+    dial(g,"Legacy shared return  "+String(delayReturn*100,0)+"%",{x,y+89,column,42},masterDelayReturn,delayReturn,-1);
+    dial(g,"Delay feedback  "+String(feedback*100,0)+"%",{x+column+18,y+89,column,42},masterDelayFeedback,feedback/.8f,-1);
     dial(g,"Master volume  "+String(project.master*100,0)+"%",{x,y+148,column,42},masterDial,project.master,-1);
     button(g,"Analyze Master",{x+column+18,y+157,column,27},analyzerMaster);
-    button(g,"Insert effects...",{x,y+201,column,27},masterInsertsOpen,selectedEffect==6?0:selectedEffect);button(g,"Stereo tools...",{x+column+18,y+201,column,27},masterStereoOpen);
-    label(g,"Delay receives each channel's Delay send, including routed buses.",{x,y+241,w,23},11,muted);
+    button(g,"Insert effects...",{x,y+201,column,27},masterInsertsOpen,selectedEffect==8?0:selectedEffect);button(g,"Stereo tools...",{x+column+18,y+201,column,27},masterStereoOpen);
+    label(g,"Legacy shared delay receives Channel settings > Delay send. New Delay is insert slot 7.",{x,y+241,w,23},11,muted);
     label(g,"Return 0% mutes echoes; feedback 0% still gives one echo when return is up.",{x,y+266,w,23},11,muted);
     label(g,"Dry master bypasses Master inserts, stereo and saturation, and mutes the shared delay return.",{x,y+291,w,30},10,muted);
     label(g,"New projects bypass saturation. Older projects retain their original master sound.",{x,r.getBottom()-42,w,26},10,muted);

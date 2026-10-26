@@ -14,6 +14,75 @@ sys.path.insert(0, str(ROOT / "tools"))
 import pulse_mcp as mcp
 
 class ProtocolChecks(unittest.TestCase):
+    def test_auxiliary_automation_schema_and_version_guard(self):
+        schema=next(t for t in mcp.TOOLS if t['name']=='pulse_edit')['inputSchema']
+        for target in (122,125,'aux.send1.level','aux.send4.level'):
+            mcp.validate({'expected_revision':1,'operations':[{'op':'add_automation','track':7,'target':target,'targetTrack':7,'beat':0,'length':4,'points':[{'beat':0,'value':0},{'beat':4,'value':1}]}]},schema)
+        with tempfile.TemporaryDirectory(dir=ROOT/'test-output') as folder:
+            work=Path(folder);control=work/'data/control';requests=control/('a'*32)/'requests';requests.mkdir(parents=True)
+            for version in ('0.81.0','0.93.0','0.93.99'):
+                (control/'session.json').write_text(json.dumps({'schema':1,'session':'a'*32,'token':'fixture','version':version}),encoding='utf-8')
+                for target in (122,125,'aux.send1.level','aux.send4.level'):
+                    with self.subTest(version=version,target=target),self.assertRaisesRegex(ValueError,'0.94.0.*No request was submitted'):
+                        mcp.Bridge(work).call('edit',{'expected_revision':1,'operations':[{'op':'add_automation','target':target}]})
+                    self.assertFalse(list(requests.iterdir()))
+
+    def test_parameter_automation_schema(self):
+        schema=next(t for t in mcp.TOOLS if t['name']=='pulse_edit')['inputSchema']
+        operation={'op':'add_automation','track':7,'target':'synth.cutoff','targetTrack':7,'beat':0,'length':8,'points':[{'beat':0,'value':0},{'beat':8,'value':1}]}
+        for target in ('synth.cutoff','distortion.drive','delay.mix',0,100):mcp.validate({'expected_revision':1,'operations':[{**operation,'target':target}]},schema)
+        for target in (-1,126,1.5,True):
+            with self.assertRaises(ValueError):mcp.validate({'expected_revision':1,'operations':[{**operation,'target':target}]},schema)
+
+    def test_selector_automation_schema_and_version_guard(self):
+        schema=next(t for t in mcp.TOOLS if t['name']=='pulse_edit')['inputSchema']
+        for target in (101, 117, 'stereo.invertRight', 'synth.wave2'):
+            mcp.validate({'expected_revision':1,'operations':[{'op':'add_automation','track':7,'target':target,'targetTrack':7,'beat':0,'length':4,'points':[{'beat':0,'value':0},{'beat':4,'value':1}]}]},schema)
+        with tempfile.TemporaryDirectory(dir=ROOT/'test-output') as folder:
+            work=Path(folder);control=work/'data/control';requests=control/('a'*32)/'requests';requests.mkdir(parents=True)
+            for version in ('0.81.0','0.85.0','0.85.99'):
+                (control/'session.json').write_text(json.dumps({'schema':1,'session':'a'*32,'token':'fixture','version':version}))
+                for target in (101,117,'eq.enabled','synth.wave2'):
+                    with self.subTest(version=version,target=target),self.assertRaisesRegex(ValueError,'0.86.0.*No request was submitted'):
+                        mcp.Bridge(work).call('edit',{'expected_revision':1,'operations':[{'op':'add_automation','target':target}]})
+                    self.assertFalse(list(requests.iterdir()))
+
+    def test_master_processing_and_mute_version_guard(self):
+        schema=next(t for t in mcp.TOOLS if t['name']=='pulse_edit')['inputSchema']
+        for target in (118,121,'master.delayReturn','channel.mute'):
+            mcp.validate({'expected_revision':1,'operations':[{'op':'add_automation','track':7,'target':target,'targetTrack':-1 if target in (118,'master.delayReturn') else 7,'beat':0,'length':4,'points':[{'beat':0,'value':0},{'beat':4,'value':1}]}]},schema)
+        with tempfile.TemporaryDirectory(dir=ROOT/'test-output') as folder:
+            work=Path(folder);control=work/'data/control';requests=control/('a'*32)/'requests';requests.mkdir(parents=True)
+            for version in ('0.86.0','0.86.99'):
+                (control/'session.json').write_text(json.dumps({'schema':1,'session':'a'*32,'token':'fixture','version':version}))
+                for target in (118,121,'master.softClip','channel.mute'):
+                    with self.subTest(version=version,target=target),self.assertRaisesRegex(ValueError,'0.87.0.*No request was submitted'):
+                        mcp.Bridge(work).call('edit',{'expected_revision':1,'operations':[{'op':'add_automation','target':target}]})
+                    self.assertFalse(list(requests.iterdir()))
+
+    def test_parameter_automation_reject_old_app(self):
+        with tempfile.TemporaryDirectory(prefix='mcp-parameter-',dir=ROOT/'test-output') as folder:
+            work=Path(folder);control=work/'data/control';requests=control/('a'*32)/'requests';requests.mkdir(parents=True)
+            (control/'session.json').write_text(json.dumps({'schema':1,'session':'a'*32,'token':'fixture','version':'0.80.0'}))
+            for target in (6,100,'synth.cutoff'):
+                with self.assertRaisesRegex(ValueError,'No request was submitted'):mcp.Bridge(work).call('edit',{'expected_revision':1,'operations':[{'op':'add_automation','target':target}]})
+            self.assertFalse(list(requests.iterdir()))
+
+    def test_creative_effects(self):
+        effect={'delay':{'repeats':16,'interval':1000,'fade':0,'mix':.4},'distortion':{'mode':2,'drive':48,'lowCut':120,'tone':4500,'presence':4,'asymmetry':.6,'cabinet':1,'mix':1,'output':-10},'order':[0,1,2,3,4,5,7,6]}
+        mcp.validate({'op':'set_track','track':7,'effects':effect},mcp.OPERATIONS)
+        mcp.validate({'op':'set_song','masterEffects':effect},mcp.OPERATIONS)
+        for invalid in ({'delay':{'repeats':1.5}},{'delay':{'repeats':17}},{'delay':{'interval':0}},{'delay':{'fade':1.1}},{'distortion':{'mode':3}},{'distortion':{'drive':49}},{'distortion':{'tone':0}},{'distortion':{'cabinet':True}},{'order':[0,1,2,3,4,5,6,6]}):
+            with self.assertRaises(ValueError):mcp.validate({'op':'set_track','track':7,'effects':invalid},mcp.OPERATIONS)
+
+    def test_removed_generator_rejected(self):
+        schema=next(t for t in mcp.TOOLS if t['name']=='pulse_edit')['inputSchema']
+        with self.assertRaises(ValueError):mcp.validate({'expected_revision':1,'operations':[{'op':'set_track','track':7,'instrument':'granular'}]},schema)
+
+    def test_removed_generator_parameters_rejected(self):
+        schema=next(t for t in mcp.TOOLS if t['name']=='pulse_edit')['inputSchema']
+        with self.assertRaises(ValueError):mcp.validate({'expected_revision':1,'operations':[{'op':'set_track','track':7,'instrument':'analog','synth':{'granular':{'seed':1}}}]},schema)
+
     def test_mix_analysis_schema(self):
         schema=next(t for t in mcp.TOOLS if t['name']=='pulse_mix_analysis')['inputSchema']
         mcp.validate({'action':'status'},schema)
@@ -22,6 +91,14 @@ class ProtocolChecks(unittest.TestCase):
             with self.assertRaises(ValueError):mcp.validate({'action':action},schema)
         for args in ({'action':'bad'},{'action':'status','path':'x'},{'action':'start','expected_revision':True}):
             with self.assertRaises(ValueError):mcp.validate(args,schema)
+
+    def test_creative_effects_reject_old_app(self):
+        with tempfile.TemporaryDirectory(prefix='mcp-creative-',dir=ROOT/'test-output') as folder:
+            work=Path(folder);control=work/'data/control';requests=control/('a'*32)/'requests';requests.mkdir(parents=True)
+            (control/'session.json').write_text(json.dumps({'schema':1,'session':'a'*32,'token':'fixture','version':'0.79.0'}))
+            for effect in ({'delay':{'repeats':3}},{'distortion':{'drive':20}},{'order':list(range(8))}):
+                with self.assertRaisesRegex(ValueError,'No request was submitted'):mcp.Bridge(work).call('edit',{'expected_revision':1,'operations':[{'op':'set_track','track':7,'effects':effect}]})
+            self.assertFalse(list(requests.iterdir()))
 
     def test_mix_analysis_rejects_old_app(self):
         with tempfile.TemporaryDirectory(prefix='mcp-mix-',dir=ROOT/'test-output') as folder:
@@ -102,7 +179,7 @@ class ProtocolChecks(unittest.TestCase):
 
     def test_master_insert_schema(self):
         schema=next(t for t in mcp.TOOLS if t['name']=='pulse_edit')['inputSchema']
-        effects={'order':[4,0,1,3,5,2],'compressor':{'threshold':-24,'ratio':3,'attack':5,'release':160,'makeup':1},'flanger':{'centre':3,'feedback':-.85},'phaser':{'centre':4000,'rate':.02},'stereo':{'mono':True}}
+        effects={'order':[4,0,1,3,5,2,6,7],'compressor':{'threshold':-24,'ratio':3,'attack':5,'release':160,'makeup':1},'flanger':{'centre':3,'feedback':-.85},'phaser':{'centre':4000,'rate':.02},'stereo':{'mono':True}}
         mcp.validate({'expected_revision':1,'operations':[{'op':'set_song','masterEffects':effects},{'op':'set_track','track':5,'effects':effects}]},schema)
         for invalid in ({'output':0},{'compressor':{'sidechain':0}},{'order':[0,0,2,3,4,5]},{'order':[0,1]},{'flanger':{'rate':6}},{'phaser':{'centre':4001}},{'compressor':{'threshold':-61}},{'reverb':{'enabled':1}}):
             with self.assertRaises(ValueError):mcp.validate({'expected_revision':1,'operations':[{'op':'set_song','masterEffects':invalid}]},schema)
@@ -174,6 +251,80 @@ class ProtocolChecks(unittest.TestCase):
             point={"beat":0,"value":.2,field:value}
             with self.subTest(field=field,value=value), self.assertRaises(ValueError):
                 mcp.validate({"op":"set_automation_points","clip":1,"points":[point,{"beat":4,"value":.8}]}, mcp.OPERATIONS)
+
+    def test_auxiliary_send_schema(self):
+        slot={'target':8,'level':.5,'preFader':True}
+        op={'op':'set_track','track':7,'auxSends':[slot]*4}
+        mcp.validate(op,mcp.OPERATIONS)
+        for values in ([],[slot]*3,[slot]*5,None):
+            with self.assertRaises(ValueError):mcp.validate(dict(op,auxSends=values),mcp.OPERATIONS)
+        for field,value in [('target',True),('target',-2),('target',16),('target',1.5),('level',True),('level',-.1),('level',1.51),('level','0.5'),('preFader',1),('extra',0)]:
+            with self.assertRaises(ValueError):mcp.validate(dict(op,auxSends=[dict(slot,**{field:value})]*4),mcp.OPERATIONS)
+        for field in slot:
+            bad=dict(slot);del bad[field]
+            with self.assertRaises(ValueError):mcp.validate(dict(op,auxSends=[bad]*4),mcp.OPERATIONS)
+
+    def test_auxiliary_send_guard_submits_no_request_to_old_app(self):
+        with tempfile.TemporaryDirectory(prefix='mcp-aux-version-',dir=ROOT/'test-output') as folder:
+            work=Path(folder);control=work/'data/control';requests=control/('a'*32)/'requests';requests.mkdir(parents=True)
+            for version in ('0.92.0','0.31.0','invalid',None):
+                (control/'session.json').write_text(json.dumps({'schema':1,'session':'a'*32,'token':'fixture','version':version}))
+                with self.assertRaisesRegex(ValueError,'No request was submitted'):
+                    mcp.Bridge(work).call('edit',{'expected_revision':1,'operations':[{'op':'set_track','track':7,'auxSends':[{'target':-1,'level':.25,'preFader':False}]*4}]})
+                self.assertEqual(list(requests.iterdir()),[])
+
+    def test_ripple_schema(self):
+        operation={'op':'ripple_time','start':4,'length':4,'remove':False}
+        for remove in (False,True):mcp.validate(dict(operation,remove=remove),mcp.OPERATIONS)
+        for field,value in [('start',-1),('start',True),('length',0),('length',.249),('length','4'),('remove',1),('remove',None),('lane',0)]:
+            with self.assertRaises(ValueError):mcp.validate(dict(operation,**{field:value}),mcp.OPERATIONS)
+        for field in ('start','length','remove'):
+            bad=dict(operation);del bad[field]
+            with self.assertRaises(ValueError):mcp.validate(bad,mcp.OPERATIONS)
+
+    def test_ripple_guard_submits_no_request_to_old_app(self):
+        with tempfile.TemporaryDirectory(prefix='mcp-ripple-version-',dir=ROOT/'test-output') as folder:
+            work=Path(folder);control=work/'data/control';requests=control/('a'*32)/'requests';requests.mkdir(parents=True)
+            for version in ('0.91.0','0.31.0','invalid',None):
+                (control/'session.json').write_text(json.dumps({'schema':1,'session':'a'*32,'token':'fixture','version':version}))
+                with self.assertRaisesRegex(ValueError,'No request was submitted'):
+                    mcp.Bridge(work).call('edit',{'expected_revision':1,'operations':[{'op':'ripple_time','start':4,'length':4,'remove':False}]})
+                self.assertEqual(list(requests.iterdir()),[])
+
+    def test_choke_group_schema(self):
+        for kind in ('set_track','add_track'):
+            op={'op':kind,**({'track':7} if kind=='set_track' else {'name':'Hat','instrument':'hat'})}
+            for group in (0,1,16):mcp.validate(dict(op,chokeGroup=group),mcp.OPERATIONS)
+            for group in (-1,17,True,'1',1.5,None):
+                with self.assertRaises(ValueError):mcp.validate(dict(op,chokeGroup=group),mcp.OPERATIONS)
+
+    def test_choke_group_guard_submits_no_request_to_old_app(self):
+        with tempfile.TemporaryDirectory(prefix='mcp-choke-version-',dir=ROOT/'test-output') as folder:
+            work=Path(folder);control=work/'data/control';requests=control/('a'*32)/'requests';requests.mkdir(parents=True)
+            for version in ('0.90.0','0.31.0','invalid',None):
+                (control/'session.json').write_text(json.dumps({'schema':1,'session':'a'*32,'token':'fixture','version':version}))
+                for group in (0,1):
+                    with self.assertRaisesRegex(ValueError,'No request was submitted'):
+                        mcp.Bridge(work).call('edit',{'expected_revision':1,'operations':[{'op':'set_track','track':7,'chokeGroup':group}]})
+                    self.assertEqual(list(requests.iterdir()),[])
+
+    def test_trim_automation_schema(self):
+        operation={"op":"add_automation","track":7,"target":0,"targetTrack":7,"beat":0,"length":2,"points":[{"beat":0,"value":.5},{"beat":2,"value":.6}]}
+        for trim in (True,False):
+            mcp.validate(dict(operation,trim=trim),mcp.OPERATIONS)
+        for bad in (0,1,"true",None):
+            with self.assertRaises(ValueError):mcp.validate(dict(operation,trim=bad),mcp.OPERATIONS)
+        mcp.validate(operation,mcp.OPERATIONS)
+
+    def test_trim_guard_submits_no_request_to_old_app(self):
+        with tempfile.TemporaryDirectory(prefix='mcp-trim-version-',dir=ROOT/'test-output') as folder:
+            work=Path(folder);control=work/'data/control';requests=control/('a'*32)/'requests';requests.mkdir(parents=True)
+            for version in ('0.89.0','0.31.0','invalid',None):
+                (control/'session.json').write_text(json.dumps({'schema':1,'session':'a'*32,'token':'fixture','version':version}))
+                for trim in (True,False):
+                    with self.assertRaisesRegex(ValueError,'No request was submitted'):
+                        mcp.Bridge(work).call('edit',{'expected_revision':1,'operations':[{'op':'add_automation','target':0,'trim':trim}]})
+                    self.assertEqual(list(requests.iterdir()),[])
 
     def test_automation_generator_schema(self):
         for wave in ("sine","triangle","square","steps","random_hold","random_smooth"):

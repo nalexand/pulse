@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 #pragma once
 #include "Engine.h"
+#include "AudioHealth.h"
+#include "AutomationParameters.h"
 #include "Recorder.h"
 #include "ProjectAssets.h"
 #include "ProjectArchive.h"
@@ -13,7 +15,9 @@
 #include "Templates.h"
 #include "RecordingTools.h"
 #include "InputAudio.h"
+#include "InputAlignment.h"
 #include "Render.h"
+#include "TrackBounce.h"
 #include "Notation.h"
 #include "MixAnalysis.h"
 #include "ReferenceComparison.h"
@@ -58,7 +62,7 @@ public:
     void resized() override;
     void prepareToPlay(int,double) override;
     void getNextAudioBlock(const juce::AudioSourceChannelInfo&) override;
-    void releaseResources() override { audioHistory.invalidate();activeOutputs.store(0);activeInputs.store(0);inputMonitor.store(false);inputPeaks.reset();if(recorder.isActive())recordDeviceStopped.store(true); }
+    void releaseResources() override;
     void mouseDown(const juce::MouseEvent&) override;
     void mouseMove(const juce::MouseEvent&) override;
     void modifierKeysChanged(const juce::ModifierKeys&) override;
@@ -113,13 +117,31 @@ private:
                   inputModeSelect,monitorToggle,monitorLevelChange,inputAudioSettings,
                   renderSource,renderFormat,renderRate,renderBits,renderChannels,renderFull,renderRange,renderPunch,renderTail,renderNormalize,renderTarget,renderDither,renderIsolated,renderChoose,renderCancel,
                   markersOpen,markerAdd,sectionAdd,markerSelect,markerEdit,markerDelete,markerJump,markerPrevious,markerNext,markerLoop,markerClearLoop,markerExport,markerColour,markerHit,markerRail,
-                  humanize,quickQuantize,noteToolMode,noteToolCapture,noteToolGrid,noteToolValue,noteToolWindow,noteToolChords,noteToolSeed,noteToolReroll,noteToolPreview,noteToolReset,noteToolApply,noteToolCancel,commandSearch,paletteWindow,paletteClip,paletteTemplate,euclideanOpen,rhythmAdjust,rhythmNumber,rhythmRange,rhythmWrite,arpeggiatorOpen,arpDirection,arpRate,arpAdjust,arpNumber,arpRestart,notePresetsOpen,patternMakeUnique,patternSplitChannels,patternMergeLayers,patternClipMenu,patternMoveEarlier,patternMoveLater,patternDeleteUnused,waveEditMenu,waveCopy,waveCut,wavePaste,waveReplace,waveDuplicate,waveTrim,waveDelete,waveSilence,waveRedo,waveSliceMenu,waveSlice,waveDetect,waveClearMarks,waveSliceMarks,synthOpen,synthPresets,synthSave,synthLoad,synthPreview,synthTab,synthWave,synthValue,synthChannel,synthLibrarySave,synthLibraryImport,synthLibraryManage,chorusMix,chorusRate,chorusDepth,chorusDelay,chorusFeedback,chorusWidth,flangerMix,flangerRate,flangerDepth,flangerCentre,flangerFeedback,flangerWidth,phaserMix,phaserRate,phaserDepth,phaserCentre,phaserFeedback,phaserWidth,effectsChainMenu,effectsChainCopy,effectsChainPaste,effectsChainSave,effectsChainLoad,effectsChainReset,effectMoveEarlier,effectMoveLater,effectsFactoryRecall,analyzerOpen,analyzerMaster,analyzerChannel,analyzerFreeze,analyzerReset,analyzerBack,stereoOpen,stereoEnable,stereoMono,stereoSwap,stereoInvertLeft,stereoInvertRight,stereoReset,stereoWidth,stereoTrim,workspaceMenu,workspaceSave,workspaceFactory,workspaceRecall,interfaceScaleMenu,interfaceScale,controlToggle,typingMenu,typingSustainToggle,typingVelocitySet,typingVelocityEdit,typingOctaveSet,typingRecall,typingCaptureClear,typingTransposeSet,typingCaptureToggle,typingCaptureWindow,patternMergeSequence,patternDeleteUsed,patternColourMenu,patternColourSet,metronomeSettingsOpen,patternExtract,patternMergeOptions,sectionClipsOpen,waveResample,waveCancelConversion,browserAsset,notePasteOriginal,notePasteStart,noteCopyToPattern,browserFilterOpen,browserFilterClear,projectArchiveExport,projectArchiveImport,projectArchiveCancel,harmonySettingsOpen,harmonyFitOpen,harmonyChordOpen,harmonyChoice,harmonyNumber,harmonyDirection,harmonySkip,versionsOpen,versionSaveNamed,versionCancelTask,shortcutsOpen,samplerTuningOpen,samplerDetect,samplerDetectCancel,playlistGroupOpen,playlistAll,playlistNone,playlistGroupDrag,playlistLasso,playlistLoopSelection,playlistLoopClear,playlistLoopDrag,audioCrossfadeOpen,audioFadesClear,playlistAudioTools,harmonyPresetsOpen,progressionOpen,progressionSettings,progressionExamples,openPreviousSave,recoveryRetentionOpen,recoveryCleanupReview,recoveryCleanupCancel,audioFadeCurvesOpen,grooveOpen,grooveSettingsOpen,grooveCapture,grooveStepEdit,grooveWindow,automationShapeOpen,automationGenerateOpen,editHistoryOpen,masterEffectsOpen,masterSoftClipToggle,masterDry,masterDelayReturn,masterDelayFeedback,masterInsertsOpen,masterStereoOpen,noteConditionOpen,dynamicsModeMenu,dynamicsRange,dynamicsHysteresis,dynamicsHold,dynamicsKnee,microTuningOpen,notePasteCursor,projectCommandsOpen,mixAnalysisOpen,mixAnalysisCancel,restorationOpen,restorationCancel,browserPreviewStop,referenceOpen,referenceCancel,transcriptionOpen,transcriptionCancel,spectralOpen,notationOpen,audioHistoryOpen,audioHistoryOff,audioTakeLimit,samplerToPlaylist,lastAction };
+                  humanize,quickQuantize,noteToolMode,noteToolCapture,noteToolGrid,noteToolValue,noteToolWindow,noteToolChords,noteToolSeed,noteToolReroll,noteToolPreview,noteToolReset,noteToolApply,noteToolCancel,commandSearch,paletteWindow,paletteClip,paletteTemplate,euclideanOpen,rhythmAdjust,rhythmNumber,rhythmRange,rhythmWrite,arpeggiatorOpen,arpDirection,arpRate,arpAdjust,arpNumber,arpRestart,notePresetsOpen,patternMakeUnique,patternSplitChannels,patternMergeLayers,patternClipMenu,patternMoveEarlier,patternMoveLater,patternDeleteUnused,waveEditMenu,waveCopy,waveCut,wavePaste,waveReplace,waveDuplicate,waveTrim,waveDelete,waveSilence,waveRedo,waveSliceMenu,waveSlice,waveDetect,waveClearMarks,waveSliceMarks,synthOpen,synthPresets,synthSave,synthLoad,synthPreview,synthTab,synthWave,synthValue,synthChannel,synthLibrarySave,synthLibraryImport,synthLibraryManage,chorusMix,chorusRate,chorusDepth,chorusDelay,chorusFeedback,chorusWidth,flangerMix,flangerRate,flangerDepth,flangerCentre,flangerFeedback,flangerWidth,phaserMix,phaserRate,phaserDepth,phaserCentre,phaserFeedback,phaserWidth,effectsChainMenu,effectsChainCopy,effectsChainPaste,effectsChainSave,effectsChainLoad,effectsChainReset,effectMoveEarlier,effectMoveLater,effectsFactoryRecall,analyzerOpen,analyzerMaster,analyzerChannel,analyzerFreeze,analyzerReset,analyzerBack,stereoOpen,stereoEnable,stereoMono,stereoSwap,stereoInvertLeft,stereoInvertRight,stereoReset,stereoWidth,stereoTrim,workspaceMenu,workspaceSave,workspaceFactory,workspaceRecall,interfaceScaleMenu,interfaceScale,controlToggle,typingMenu,typingSustainToggle,typingVelocitySet,typingVelocityEdit,typingOctaveSet,typingRecall,typingCaptureClear,typingTransposeSet,typingCaptureToggle,typingCaptureWindow,patternMergeSequence,patternDeleteUsed,patternColourMenu,patternColourSet,metronomeSettingsOpen,patternExtract,patternMergeOptions,sectionClipsOpen,waveResample,waveCancelConversion,browserAsset,notePasteOriginal,notePasteStart,noteCopyToPattern,browserFilterOpen,browserFilterClear,projectArchiveExport,projectArchiveImport,projectArchiveCancel,harmonySettingsOpen,harmonyFitOpen,harmonyChordOpen,harmonyChoice,harmonyNumber,harmonyDirection,harmonySkip,versionsOpen,versionSaveNamed,versionCancelTask,shortcutsOpen,samplerTuningOpen,samplerDetect,samplerDetectCancel,playlistGroupOpen,playlistAll,playlistNone,playlistGroupDrag,playlistLasso,playlistLoopSelection,playlistLoopClear,playlistLoopDrag,audioCrossfadeOpen,audioFadesClear,playlistAudioTools,harmonyPresetsOpen,progressionOpen,progressionSettings,progressionExamples,openPreviousSave,recoveryRetentionOpen,recoveryCleanupReview,recoveryCleanupCancel,audioFadeCurvesOpen,grooveOpen,grooveSettingsOpen,grooveCapture,grooveStepEdit,grooveWindow,automationShapeOpen,automationGenerateOpen,editHistoryOpen,masterEffectsOpen,masterSoftClipToggle,masterDry,masterDelayReturn,masterDelayFeedback,masterInsertsOpen,masterStereoOpen,noteConditionOpen,dynamicsModeMenu,dynamicsRange,dynamicsHysteresis,dynamicsHold,dynamicsKnee,microTuningOpen,notePasteCursor,projectCommandsOpen,mixAnalysisOpen,mixAnalysisCancel,restorationOpen,restorationCancel,browserPreviewStop,referenceOpen,referenceCancel,transcriptionOpen,transcriptionCancel,spectralOpen,notationOpen,audioHistoryOpen,audioHistoryOff,audioTakeLimit,samplerToPlaylist,longNotesToggle,trackBounceOpen,trackBounceCancel,delayRepeats,delayInterval,delayFade,delayMix,distDrive,distLowCut,distTone,distPresence,distAsymmetry,distCabinet,distMix,distOutput,distMode,distPreset,automationLink,waveCloseSource,audioHealthOpen,audioHealthReset,audioHealthSave,audioDeviceRestart,takeRecoveryOpen,takeRecoveryCancel,automationValueMenu,automationWriteMode,automationWriteStart,automationWriteControl,automationWriteApply,automationWriteDiscard,chokeGroupOpen,playlistRippleOpen,auxSendsOpen,auxLevelsOpen,auxLevel1,auxLevel2,auxLevel3,auxLevel4,inputAlignmentOpen,lastAction };
     enum MenuId { menuView=50000,menuMaximize=50100,menuClose=50200,menuInstrument=50300,menuSaveAs=50400,menuPattern=50500,menuMergePattern=50600,menuSequencePattern=50700,menuPatternColour=50800 };
     static_assert(lastAction<menuView);
     enum Pane { playlistPane=0,rackPane,pianoPane,mixerPane,channelPane,automationPane,effectsPane,wavePane,assetsPane,templatesPane,recordingPane,exportPane,markersPane,noteToolsPane,synthPane,paneCount };
     static_assert(paneCount==workspacePaneCount);
     struct PaneState { juce::Rectangle<float> bounds,restoreBounds; bool visible=false,maximized=false; };
     struct Hit { juce::Rectangle<float> rect; int action=0,data=0,extra=0,pane=-1; };
+    std::unique_ptr<BounceTask> bounceTask;
+    uint64_t bounceRevision=0;
+    bool bounceReviewed=false;
+    juce::String bounceMessage;
+    bool beginTrackBounce(double,uint64_t);
+    bool trackBounceCurrent()const;
+    bool applyTrackBounceResult();
+    void showTrackBounce();
+    void finishTrackBounce();
+    void discardTrackBounce();
+    void runGeneratorRemovalChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void runCreativeEffectsChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void runCreativeEffectsTransportTick();
+    void runParameterAutomationChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void runParameterAutomationTransportTick();
+    void runGeneratorRemovalTransportTick();
+    void runTrackBounceChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void runTrackBounceTransportTick();
     ControlMailbox controlMailbox;
     bool controlBackupDone=false;
     juce::File controlBackupFile;
@@ -171,7 +193,7 @@ private:
     juce::String commandShortcutHint(int,int,const juce::String&)const;
     void runShortcutTransportTick();
     void runShortcutChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
-    struct SamplerContext {int track=-1;uint64_t revision=0;juce::File file;juce::String stamp;double start=0,end=0;const Sample* sample=nullptr;};
+    struct SamplerContext {int track=-1;uint64_t revision=0;juce::File file;juce::String stamp;double start=0,end=0;SamplePtr sample;};
     std::thread samplePitchThread;
     std::atomic<bool> samplePitchDone{false},samplePitchCancel{false};
     bool samplePitchBusy=false,samplePitchValid=false,samplePitchPresent=false;
@@ -240,7 +262,7 @@ private:
     std::atomic<double> historyRate{48000};
     std::unique_ptr<HistorySaveTask> historyTask;
     AudioHistorySnapshot historySnapshot;
-    std::unique_ptr<Sample> historyPreview;
+    std::shared_ptr<Sample> historyPreview;
     juce::File historyFolder;
     juce::String historyStamp,historyMessage;
     bool historyReveal=false,historyOffPending=false;
@@ -266,7 +288,7 @@ private:
     std::array<float,2> inputLevels{};
     std::array<int,2> inputClipTicks{};
     void restoreInputSettings();
-    void saveInputSettings();
+    bool saveInputSettings();
     std::vector<float> monoRight=std::vector<float>(512);
     juce::AudioBuffer<float> captureInput{2,512};
     std::atomic<bool> captureScheduled{false};
@@ -291,18 +313,44 @@ private:
     int stalledPlaybackTicks=0;
     void runTransportTick();
     bool audioReady();
+    AudioHealth audioHealth;
+    std::atomic<bool> deviceInterruptionPending{false};
+    std::atomic<double> interruptedBeat{0};
+    double finalizeInterruptedBeat=-1;
+    juce::String lastDeviceInterruption;
+    void signalDeviceInterruption();
+    void handleDeviceInterruption();
+    double recordingPosition()const{return finalizeInterruptedBeat>=0?finalizeInterruptedBeat:engine->position.load();}
+    juce::var audioHealthState()const;
+    void showAudioSettings();void showAudioHealth();bool saveAudioHealth();void restartAudioDevice();
+    void runAudioHealthChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void runAudioHealthTransportTick();
     double firstSoundBeat=-1;
     std::atomic<bool> recordDeviceStopped{false};
     juce::File takeFile;
     bool audioRecordMode=false;int audioTakeSeconds=120;
+    bool longNotesEnabled=false,longNotesActive=false;
+    std::map<int,int> longNoteParts;
+    bool startLongNotes();
+    int ensureLongNotePart(int);
+    void recordLongNoteOn(int);
+    void recordLongNoteOff(int);
+    void finishLongNotes();
     bool setAudioTakeLimit(int);
     double availableTakeSeconds(double rate,double at)const;
     void samplerAudioToPlaylist();
     void runLongAudioChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
     void runLongAudioTransportTick();
+    InputAlignmentSettings inputAlignment;
+    int64_t takeAlignmentSamples=0;double takeAlignmentRate=0;
+    void showInputAlignment();
+    bool setInputAlignment(const InputAlignmentSettings&);
+    juce::var inputAlignmentState()const;
+    void runInputAlignmentTransportTick();
+    void runInputAlignmentChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
     double takeBeat=0,takeTempo=118;
     int takeTrack=0;
-    std::array<const Sample*,maxClips> clipSamples{};
+    std::array<SamplePtr,maxClips> clipSamples{};
     juce::File root,currentFile;
     std::vector<Hit> hits;
     std::unique_ptr<CommandPalette> commandPalette;
@@ -347,6 +395,16 @@ private:
     bool performExportAction(int,int);
     void restoreExportSettings();
     void saveExportSettings();
+    std::optional<TakeCheckpoint> activeTakeCheckpoint;
+    std::thread takeRecoveryThread;
+    std::atomic<bool> takeRecoveryCancelRequested{false},takeRecoveryDone{false};
+    bool takeRecoveryBusy=false;uint64_t takeRecoveryRevision=0;
+    juce::File recoveredTakeProject;juce::String takeRecoveryMessage;
+    void showTakeRecovery();
+    bool startTakeRecovery(const TakeCheckpoint&);
+    void finishTakeRecovery();
+    void announceTakeRecovery();
+    void runTakeRecoveryChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
     void restoreStartupRecovery(bool);
     bool restoreRecoveryFile(const juce::File&,bool checkpointCurrent);
     void retireRecovery();
@@ -549,7 +607,7 @@ private:
     bool applyBrowserAsset(const BrowserAsset&,int track);
     bool finishBrowserAssetGesture(const juce::MouseEvent&);
     void runBrowserKeyboardChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
-    std::array<const Sample*,maxTracks> previewSamples{};
+    std::array<SamplePtr,maxTracks> previewSamples{};
     juce::Rectangle<float> dragPaneBounds,selectionBox;
     std::set<int> selectedNotes;
     std::vector<std::pair<int,Note>> dragNotes;
@@ -587,6 +645,10 @@ private:
     bool applySongMarker(const SongMarker&,bool undo=true);
     void jumpToMarker(const juce::String&);
     void showMarkerMenu(double,const juce::String& id={});
+    void showPlaylistRipple();
+    void reviewPlaylistRipple(uint64_t,double,double,bool);
+    bool acceptPlaylistRipple(uint64_t,double,double,bool);
+    void runRippleChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
     void showSectionClips();
     bool acceptSectionClips(const juce::String&,uint64_t,double,bool,bool);
     void runSectionClipChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
@@ -597,6 +659,7 @@ private:
     int effectTarget()const{return editingMasterEffects()?-1:selectedTrack;}
     Track::Mixer& effectMixer(int target){return target<0?project.masterMixer:project.tracks[(size_t)target].mixer;}
     const Track::Mixer& effectMixer(int target)const{return target<0?project.masterMixer:project.tracks[(size_t)target].mixer;}
+    Track::Mixer displayedEffectMixer(int target)const;
     void runMasterInsertTransportTick();
     std::set<int> conditionSelection()const;
     bool noteConditionContext(uint64_t,int,int,const std::set<int>&)const;
@@ -770,7 +833,7 @@ private:
     bool scanning=false;
     int libraryScroll=0;
     juce::Rectangle<float> libraryRect,waveRect;
-    const Sample* waveSample=nullptr;
+    SamplePtr waveSample;
     double waveStart=0,waveEnd=0,waveViewStart=0,waveSpan=1,waveAnchor=0;
     struct WaveHistory { juce::File file; double start=0,end=0,viewStart=0,span=1; };
     std::vector<WaveHistory> waveHistory,waveRedoHistory;
@@ -789,7 +852,7 @@ private:
     RestorationStats restorationStats;
     SpectralImages restorationImages;
     std::unique_ptr<RestorationTask> restorationTask;
-    const Sample* restorationPreview=nullptr;
+    SamplePtr restorationPreview;
     juce::File restorationFile,restorationSource;
     juce::String restorationSourceStamp,restorationOutputStamp,restorationMessage;
     uint64_t restorationRevision=0;
@@ -813,7 +876,7 @@ private:
     juce::var referenceReportJson;
     ReferenceOptions referenceOptions;
     juce::File referenceSource;
-    const Sample* referenceMix=nullptr;const Sample* referenceAudio=nullptr;
+    SamplePtr referenceMix,referenceAudio;
     uint64_t referenceRevision=0;
     bool referenceReveal=false,referenceMatch=true,referenceAudition=false;
     juce::String referenceMessage;
@@ -889,16 +952,45 @@ private:
     bool startFromTemplate(const ProjectTemplate&);
     bool templateMatches(const ProjectTemplate&) const;
     bool performTemplateAction(int,int);
-    static bool isParameter(int action){return(action>=dynamicsRange&&action<=dynamicsKnee)||(action>=volumeDial&&action<=mixFader)||(action>=eqLow&&action<=reverbDamping)||(action>=chorusMix&&action<=chorusWidth)||(action>=flangerMix&&action<=phaserWidth)||(action>=stereoWidth&&action<=stereoTrim)||(action>=masterDelayReturn&&action<=masterDelayFeedback);}
+    void editCreativeParameter(int action,int track);
+    void paintCreativeEffects(juce::Graphics&,juce::Rectangle<float>);
+    static bool isParameter(int action){return(action>=auxLevel1&&action<=auxLevel4)||(action>=delayRepeats&&action<=distOutput)||(action>=dynamicsRange&&action<=dynamicsKnee)||(action>=volumeDial&&action<=mixFader)||(action>=eqLow&&action<=reverbDamping)||(action>=chorusMix&&action<=chorusWidth)||(action>=flangerMix&&action<=phaserWidth)||(action>=stereoWidth&&action<=stereoTrim)||(action>=masterDelayReturn&&action<=masterDelayFeedback);}
     void chooseRouting(bool sidechain);
+    void showAuxSends();
+    void paintAuxLevels(juce::Graphics&,juce::Rectangle<float>);
+    bool setAuxSends(int,uint64_t,const AuxSends&);
+    void runAuxSendTransportTick();
+    void runAuxSendChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
     bool routeTrack(int source,int destination);
     void createAutomation(int action,int track);
     int automationTargetFor(int action,int track) const;
+    bool createParameterAutomation(int target,int track,uint64_t expected);
+    void showAutomationParameters();
+    void showAutomationValueMenu();
     float liveParameter(int action,int track,float fallback) const;
     struct AutomationContext {uint64_t revision=0;int clip=-1;juce::String id;double length=0;std::vector<AutomationPoint> points;};
     AutomationGenerator automationGenerator;
+    std::optional<AutomationContext> automationWriteContext;
+    int automationWriteModeValue=0; // Read / Touch / Latch / Write / Trim; never armed on restart.
+    float automationWriteValue=0;
+    bool automationWriteNotified=false;
+    juce::Rectangle<float> automationWriteRect;
+    int automationWriteNativeAction=0;
+    juce::Rectangle<float> automationWriteNativeRect;
+    bool beginAutomationWrite();
+    bool applyAutomationWrite();
+    void discardAutomationWrite();
+    void tickAutomationWrite();
+    bool automationWriteAction(int,int);
+    bool automationWriteMouseDown(const Hit&,const juce::MouseEvent&);
+    void automationWriteMouseDrag(const juce::MouseEvent&);
+    bool automationWriteNavigation(int action,int data) const;
+    void paintAutomationWrite(juce::Graphics&,juce::Rectangle<float>);
+    void runAutomationWriteChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
     std::optional<AutomationContext> automationToolContext() const;
     bool automationToolCurrent(const AutomationContext&) const;
+    bool setAutomationActualValue(const AutomationContext&,int point,double value);
+    bool setAutomationChoice(const AutomationContext&,int point,int choice);
     bool applyAutomationPoints(const AutomationContext&,const std::vector<AutomationPoint>&,bool requireEndpoints=true);
     void showAutomationShape();
     void showAutomationGenerator();
@@ -940,7 +1032,7 @@ private:
     void perform(int,int=0);
     void checkpoint();
     void changed(bool compile=true);
-    void publish();
+    void publish(bool reset=false);
     void applyHistory(bool redo);
     void chooseFile(int);
     void startExport(const juce::File&,bool stems=false);
@@ -956,6 +1048,10 @@ private:
     void rememberProject(const juce::File&);
     bool restoreLastProject();
     void writeRuntimeReport(const juce::File&);
+    void showChokeGroup();
+    bool setChokeGroup(int track,int group,uint64_t expected);
+    void runChokeGroupChecks(const juce::File&,const std::function<void(bool,const juce::String&)>&);
+    void runChokeGroupTransportTick();
     void showHelp();
     void releaseKeys();
     void recordOn(int pitch);

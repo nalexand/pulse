@@ -15,5 +15,6 @@ const std::array<SynthParameterSpec,synthParameterCount>& synthParameterSpecs();
 double synthParameterValue(const Track&,int);
 double synthParameterNormal(int,double value);
 double synthParameterFromNormal(int,double normal);
+void assignSynthParameter(SynthPatch&,float& attack,float& release,int,double)noexcept;
 juce::Result setSynthParameter(Track&,int,double value);
 }

@@ -7,6 +7,7 @@
 #include "Modulation.h"
 #include "Stereo.h"
 #include "Dynamics.h"
+#include "CreativeEffects.h"
 #include "AudioFades.h"
 #include "AutomationShapes.h"
 #include <array>
@@ -14,7 +15,7 @@
 #include <functional>
 
 namespace pulse {
-constexpr int projectSchema=25;
+constexpr int projectSchema=35;
 constexpr double maxAudioSeconds=1800; // Long Playlist/sampler sources; editors retain separate budgets.
 constexpr uint64_t maxDecodedAudioBytes=512ull*1024*1024;
 constexpr int patternColourCount=13; // Automatic plus twelve fixed palette colours.
@@ -33,6 +34,17 @@ struct SongMarker {
     bool isSection()const{return endBeat>=0;}
 };
 enum class AutomationTarget { volume, pan, cutoff, drive, send, master };
+// IDs 0-121 retain their schema-31 meaning. New targets are appended.
+constexpr int automationTargetCount=126, automationSynthFirst=53, automationSynthEnd=101;
+constexpr int auxSendCount=4;
+constexpr int automationAuxFirst=122;
+constexpr bool isAuxAutomation(int target){return target>=automationAuxFirst&&target<automationAuxFirst+auxSendCount;}
+constexpr int automationSwitchFirst=101, automationWaveFirst=116;
+constexpr bool isSynthAutomation(int target){return (target>=automationSynthFirst&&target<automationSynthEnd)||(target>=automationWaveFirst&&target<118);}
+constexpr bool isMasterProcessingAutomation(int target){return target>=118&&target<=120;}
+constexpr bool isMasterOnlyAutomation(int target){return target==5||isMasterProcessingAutomation(target);}
+bool automationIsMaster(int target,int track);
+bool validAutomationLink(int target,int track,int tracks);
 juce::String automationName(AutomationTarget);
 struct AutomationPoint { double beat = 0; float value = .5f; bool hold = false; AutomationCurve curve=AutomationCurve::linear; float tension=0; bool operator==(const AutomationPoint&)const=default; };
 enum class Instrument { kick, snare, hat, clap, openHat, bass, pad, lead, sample, analog, fm, wavetable, additive, physical };
@@ -49,7 +61,9 @@ struct Note {
 };
 constexpr bool validNoteCondition(const Note& n) { return n.conditionEvery>=1&&n.conditionEvery<=16&&n.conditionStep>=1&&n.conditionStep<=n.conditionEvery; }
 constexpr bool noteConditionMatches(int every,int step,uint64_t pass) { return every>=1&&every<=16&&step>=1&&step<=every&&pass%(uint64_t)every==(uint64_t)(step-1); }
-constexpr int builtinEffectCount=6;
+constexpr int builtinEffectCount=8;
+struct AuxSend {int target=-1;float level=.25f;bool preFader=false;bool operator==(const AuxSend&)const=default;};
+using AuxSends=std::array<AuxSend,auxSendCount>;
 using EffectOrder=std::array<int,builtinEffectCount>;
 juce::String effectName(int,bool compact=false);
 juce::Result validateEffectOrder(const EffectOrder&);
@@ -59,15 +73,19 @@ struct Track {
     struct Mixer {
         int output=-1,sidechain=-1;
         bool eq=false,compressor=false,reverb=false;
-        EffectOrder order{0,1,2,3,4,5};
+        EffectOrder order{0,1,2,3,4,5,6,7};
+        EchoSettings delay;
+        DistortionSettings distortion;
         ChorusSettings chorus;
         StereoSettings stereo;
         DynamicsOptions dynamics;
         ModulationSettings flanger=defaultModulation(ModulationKind::flanger),phaser=defaultModulation(ModulationKind::phaser);
         float low=0,mid=0,high=0,threshold=-18,ratio=4,compAttack=10,compRelease=120,makeup=0;
         float reverbMix=.15f,room=.5f,damping=.5f;
+        bool operator==(const Mixer&)const=default;
     } mixer;
     bool isBus=false;
+    int chokeGroup=0; // Off, or one of 16 shared source-voice choke groups.
     juce::String name;
     Instrument instrument = Instrument::kick;
     float volume = 0.7f, pan = 0, cutoff = 16000, drive = 0, send = 0;
@@ -82,6 +100,7 @@ struct Track {
     SynthPatch synth;
     juce::String soundName;
     juce::String editorId=juce::Uuid().toString(); // Editor identity only; never serialized.
+    AuxSends auxSends;
 };
 struct Pattern {
     juce::String name;
@@ -98,6 +117,7 @@ struct Clip {
     float gain = 1; double fadeIn = 0, fadeOut = 0; // Fades in beats.
     int automationTarget = -1;
     int automationTrack = -1; // Link is independent of the Playlist lane.
+    bool automationTrim=false; // 0.5 = zero, 0/1 = -/+ one normalized range.
     std::vector<AutomationPoint> points;
     juce::String editorId=juce::Uuid().toString(); // Editor selection identity, excluded from files.
     FadeCurve fadeInCurve=FadeCurve::linear,fadeOutCurve=FadeCurve::linear;
@@ -125,6 +145,7 @@ struct Project {
 };
 Project demoProject();
 Project emptyProject();
+uint32_t audibleChokeMask(const Project&);
 uint32_t automaticPatternColourARGB(int index);
 void ensurePatternEditorIds(Project&);
 void ensurePlaylistEditorIds(Project&);

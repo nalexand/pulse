@@ -6,6 +6,7 @@ namespace pulse {
 enum class RenderFormat { wav,flac };
 enum class RenderSource { current,song,pattern };
 struct RenderSettings {
+    int rawTrack=-1; // Internal source bounce tap; never used by mix/stem export.
     RenderFormat format=RenderFormat::wav;
     RenderSource source=RenderSource::current;
     int sampleRate=48000,bits=24,channels=2;
